@@ -1,0 +1,7 @@
+node_modules/
+config.json
+active_reminders.json
+.env
+*.log
+.DS_Store
+test-functionality.js
