@@ -2,6 +2,7 @@ const fs = require('fs');
 const express = require('express');
 const bodyParser = require('body-parser');
 const { google } = require('googleapis');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const port = 3000;
@@ -103,6 +104,16 @@ app.get('/setup', (req, res) => {
           <label>Phone Number:</label>
           <input type="text" name="twilio_phone" required />
 
+          <h3>Gmail SMTP (for Doctor Notifications)</h3>
+          <label>Gmail Address:</label>
+          <input type="email" name="gmail_user" required placeholder="clinic@example.com" />
+          <label>Gmail App Password:</label>
+          <input type="password" name="gmail_password" required />
+          <small style="color: #666; font-size: 0.9em; display: block; margin-bottom: 1rem;">
+            Use an App Password, not your regular Gmail password. 
+            <a href="https://support.google.com/accounts/answer/185833" target="_blank">Learn how to create one</a>
+          </small>
+
           <button type="submit">Save</button>
         </form>
       </div>
@@ -125,6 +136,11 @@ app.post('/save-keys', (req, res) => {
     sid: req.body.twilio_sid,
     auth_token: req.body.twilio_auth_token,
     phone: req.body.twilio_phone,
+  };
+
+  config.gmail = {
+    user: req.body.gmail_user,
+    password: req.body.gmail_password,
   };
 
   saveConfig(config);
@@ -166,6 +182,52 @@ app.get('/oauth2callback', async (req, res) => {
   res.send("✅ Google authentication successful! Tokens stored.");
 });
 
+// ========= GMAIL TRANSPORTER =========
+function getGmailTransporter() {
+  const config = loadConfig();
+  if (!config.gmail) throw new Error("Gmail SMTP credentials not set. Go to /setup first.");
+  
+  return nodemailer.createTransporter({
+    service: 'gmail',
+    auth: {
+      user: config.gmail.user,
+      pass: config.gmail.password
+    }
+  });
+}
+
+// ========= EMAIL FUNCTIONS =========
+async function sendDoctorNotification(doctorEmail, patientInfo, appointmentDetails) {
+  const transporter = getGmailTransporter();
+  const config = loadConfig();
+  
+  const mailOptions = {
+    from: config.gmail.user,
+    to: doctorEmail,
+    subject: `Appointment Reminder - ${patientInfo.name}`,
+    html: `
+      <h2>Appointment Reminder</h2>
+      <p><strong>Patient:</strong> ${patientInfo.name}</p>
+      <p><strong>Phone:</strong> ${patientInfo.phone}</p>
+      <p><strong>Contact Method:</strong> ${patientInfo.method}</p>
+      <p><strong>Appointment:</strong> ${appointmentDetails.summary || 'No title'}</p>
+      <p><strong>Start:</strong> ${appointmentDetails.start}</p>
+      <p><strong>End:</strong> ${appointmentDetails.end}</p>
+      <hr>
+      <p><em>This is an automated notification from the Calendar Reminder System.</em></p>
+    `
+  };
+  
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent: ' + info.response);
+    return { success: true, info };
+  } catch (error) {
+    console.error('Error sending email:', error);
+    return { success: false, error };
+  }
+}
+
 // ========= SAMPLE EVENT FETCH =========
 app.get('/events', async (req, res) => {
   const config = loadConfig();
@@ -188,7 +250,202 @@ app.get('/events', async (req, res) => {
   res.json(events.data.items);
 });
 
+// ========= PATIENT METHOD MANAGEMENT =========
+// Endpoint to send a test doctor notification
+app.post('/send-doctor-notification', async (req, res) => {
+  try {
+    const { doctorEmail, patientName, patientPhone, patientMethod, appointmentSummary, appointmentStart, appointmentEnd } = req.body;
+    
+    // Validate method (case insensitive)
+    const validMethods = ['whatsapp', 'wa', 'sms'];
+    const normalizedMethod = patientMethod.toLowerCase();
+    if (!validMethods.includes(normalizedMethod)) {
+      return res.status(400).json({ error: 'Invalid method. Use WhatsApp, WA, or SMS (case insensitive)' });
+    }
+    
+    // Format method for display
+    const displayMethod = normalizedMethod === 'wa' ? 'WhatsApp' : 
+                         normalizedMethod === 'whatsapp' ? 'WhatsApp' : 'SMS';
+    
+    const patientInfo = {
+      name: patientName,
+      phone: patientPhone,
+      method: displayMethod
+    };
+    
+    const appointmentDetails = {
+      summary: appointmentSummary,
+      start: appointmentStart,
+      end: appointmentEnd
+    };
+    
+    const result = await sendDoctorNotification(doctorEmail, patientInfo, appointmentDetails);
+    
+    if (result.success) {
+      res.json({ message: 'Doctor notification sent successfully', info: result.info });
+    } else {
+      res.status(500).json({ error: 'Failed to send notification', details: result.error });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========= TEST EMAIL ENDPOINT =========
+app.get('/test-email', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Test Doctor Email Notification</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          background-color: #f4f6f8;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          margin: 0;
+        }
+        .container {
+          background: white;
+          padding: 2rem;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          max-width: 500px;
+          width: 100%;
+        }
+        h2 {
+          margin-top: 0;
+          color: #333;
+        }
+        label {
+          display: block;
+          margin-bottom: 0.5rem;
+          font-weight: bold;
+          color: #555;
+        }
+        input, select {
+          width: 100%;
+          padding: 0.5rem;
+          margin-bottom: 1rem;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+        button {
+          width: 100%;
+          padding: 0.75rem;
+          background-color: #28a745;
+          border: none;
+          color: white;
+          font-size: 1rem;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        button:hover {
+          background-color: #218838;
+        }
+        .method-info {
+          font-size: 0.9em;
+          color: #666;
+          margin-bottom: 1rem;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>Test Doctor Email Notification</h2>
+        <div class="method-info">
+          <strong>Patient Method Options:</strong> WhatsApp, WA, or SMS (case insensitive)<br>
+          <em>Note: Only doctors receive email notifications, never patients</em>
+        </div>
+        <form id="emailForm">
+          <label>Doctor Email:</label>
+          <input type="email" id="doctorEmail" value="dr.smith@clinic.com" required />
+          
+          <label>Patient Name:</label>
+          <input type="text" id="patientName" value="John Doe" required />
+          
+          <label>Patient Phone:</label>
+          <input type="text" id="patientPhone" value="+1234567890" required />
+          
+          <label>Contact Method:</label>
+          <select id="patientMethod" required>
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="WA">WA</option>
+            <option value="SMS">SMS</option>
+          </select>
+          
+          <label>Appointment Summary:</label>
+          <input type="text" id="appointmentSummary" value="Annual Checkup" required />
+          
+          <label>Appointment Start:</label>
+          <input type="datetime-local" id="appointmentStart" required />
+          
+          <label>Appointment End:</label>
+          <input type="datetime-local" id="appointmentEnd" required />
+          
+          <button type="submit">Send Test Email</button>
+        </form>
+        
+        <div id="result" style="margin-top: 1rem;"></div>
+        
+        <script>
+          // Set default datetime values
+          const now = new Date();
+          const tomorrow = new Date(now);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(10, 0, 0, 0);
+          const endTime = new Date(tomorrow);
+          endTime.setHours(11, 0, 0, 0);
+          
+          document.getElementById('appointmentStart').value = tomorrow.toISOString().slice(0, 16);
+          document.getElementById('appointmentEnd').value = endTime.toISOString().slice(0, 16);
+          
+          document.getElementById('emailForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+              doctorEmail: document.getElementById('doctorEmail').value,
+              patientName: document.getElementById('patientName').value,
+              patientPhone: document.getElementById('patientPhone').value,
+              patientMethod: document.getElementById('patientMethod').value,
+              appointmentSummary: document.getElementById('appointmentSummary').value,
+              appointmentStart: document.getElementById('appointmentStart').value,
+              appointmentEnd: document.getElementById('appointmentEnd').value
+            };
+            
+            try {
+              const response = await fetch('/send-doctor-notification', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+              });
+              
+              const result = await response.json();
+              
+              const resultDiv = document.getElementById('result');
+              if (response.ok) {
+                resultDiv.innerHTML = '<div style="color: green; font-weight: bold;">✅ Email sent successfully!</div>';
+              } else {
+                resultDiv.innerHTML = '<div style="color: red; font-weight: bold;">❌ Error: ' + (result.error || 'Unknown error') + '</div>';
+              }
+            } catch (error) {
+              document.getElementById('result').innerHTML = '<div style="color: red; font-weight: bold;">❌ Network error: ' + error.message + '</div>';
+            }
+          });
+        </script>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 app.listen(port, () => {
   console.log(`🚀 Server running at http://localhost:${port}`);
   console.log(`➡ Go to http://localhost:${port}/setup to enter API keys`);
+  console.log(`📧 Go to http://localhost:${port}/test-email to test doctor notifications`);
 });
