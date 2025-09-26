@@ -4,6 +4,9 @@ const bodyParser = require('body-parser');
 const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const app = express();
 const port = 3000;
 
@@ -122,6 +125,60 @@ app.get('/setup', (req, res) => {
   `);
 });
 
+// Update the /setup page to include a "Sign in with Google" button
+app.get('/setup', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Setup API Keys</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          background-color: #f4f6f8;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          margin: 0;
+        }
+        .container {
+          background: white;
+          padding: 2rem;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          max-width: 400px;
+          width: 100%;
+        }
+        h2 {
+          margin-top: 0;
+          color: #333;
+        }
+        button {
+          width: 100%;
+          padding: 0.75rem;
+          background-color: #4285F4;
+          border: none;
+          color: white;
+          font-size: 1rem;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        button:hover {
+          background-color: #357ae8;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>Setup Google Calendar Access</h2>
+        <button onclick="window.location.href='/auth'">Sign in with Google</button>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 // Save keys to config.json
 app.post('/save-keys', (req, res) => {
   const config = loadConfig();
@@ -145,30 +202,37 @@ app.post('/save-keys', (req, res) => {
 
   saveConfig(config);
 
-  res.send("✅ Keys saved successfully! Restart the app and you're good to go.");
+  res.send('✅ Keys saved successfully! Restart the app and you\'re good to go.');
 });
 
 // ========= GOOGLE CALENDAR AUTH =========
+// Update getOAuthClient to use environment variables
 function getOAuthClient() {
-  const config = loadConfig();
-  if (!config.google) throw new Error("Google Calendar API keys not set. Go to /setup first.");
-  
-  return new google.auth.OAuth2(
-    config.google.client_id,
-    config.google.client_secret,
-    config.google.redirect_uri
-  );
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error('Google Calendar API keys not set. Ensure .env file contains GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.');
+  }
+
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
+// Enhance OAuth flow to support reading and writing Google Calendar events
 app.get('/auth', (req, res) => {
   const oAuth2Client = getOAuthClient();
   const url = oAuth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/calendar.events'],
+    scope: [
+      'https://www.googleapis.com/auth/calendar.events', // Read and write access to calendar events
+      'https://www.googleapis.com/auth/calendar'
+    ],
   });
   res.redirect(url);
 });
 
+// Update /oauth2callback to store user's tokens securely
 app.get('/oauth2callback', async (req, res) => {
   const oAuth2Client = getOAuthClient();
   const { code } = req.query;
@@ -179,13 +243,13 @@ app.get('/oauth2callback', async (req, res) => {
   config.google.tokens = tokens;
   saveConfig(config);
 
-  res.send("✅ Google authentication successful! Tokens stored.");
+  res.send('✅ Google authentication successful! Tokens stored.');
 });
 
 // ========= GMAIL TRANSPORTER =========
 function getGmailTransporter() {
   const config = loadConfig();
-  if (!config.gmail) throw new Error("Gmail SMTP credentials not set. Go to /setup first.");
+  if (!config.gmail) throw new Error('Gmail SMTP credentials not set. Go to /setup first.');
   
   return nodemailer.createTransporter({
     service: 'gmail',
@@ -232,22 +296,57 @@ async function sendDoctorNotification(doctorEmail, patientInfo, appointmentDetai
 app.get('/events', async (req, res) => {
   const config = loadConfig();
   if (!config.google || !config.google.tokens) {
-    return res.send("❌ Google not authenticated. Go to /auth first.");
+    return res.send('❌ Google not authenticated. Go to /auth first.');
   }
 
   const oAuth2Client = getOAuthClient();
   oAuth2Client.setCredentials(config.google.tokens);
 
   const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
-  const events = await calendar.events.list({
-    calendarId: 'primary',
-    timeMin: (new Date()).toISOString(),
-    maxResults: 5,
-    singleEvents: true,
-    orderBy: 'startTime',
-  });
+  try {
+    const events = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin: (new Date()).toISOString(),
+      maxResults: 10, // Fetch more events for notifications
+      singleEvents: true,
+      orderBy: 'startTime',
+    });
 
-  res.json(events.data.items);
+    res.json(events.data.items);
+  } catch (error) {
+    console.error('Error fetching events:', error);
+    res.status(500).json({ error: 'Failed to fetch events', details: error.message });
+  }
+});
+
+// ========= RESCHEDULE EVENT =========
+app.post('/reschedule-event', async (req, res) => {
+  const config = loadConfig();
+  if (!config.google || !config.google.tokens) {
+    return res.send('❌ Google not authenticated. Go to /auth first.');
+  }
+
+  const oAuth2Client = getOAuthClient();
+  oAuth2Client.setCredentials(config.google.tokens);
+
+  const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
+  const { eventId, newStartTime, newEndTime } = req.body;
+
+  try {
+    const updatedEvent = await calendar.events.patch({
+      calendarId: 'primary',
+      eventId,
+      requestBody: {
+        start: { dateTime: newStartTime },
+        end: { dateTime: newEndTime },
+      },
+    });
+
+    res.json({ message: 'Event rescheduled successfully', event: updatedEvent.data });
+  } catch (error) {
+    console.error('Error rescheduling event:', error);
+    res.status(500).json({ error: 'Failed to reschedule event', details: error.message });
+  }
 });
 
 // ========= PATIENT METHOD MANAGEMENT =========
