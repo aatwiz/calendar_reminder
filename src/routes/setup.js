@@ -1,7 +1,7 @@
 const express = require('express');
 const { loadConfig, saveConfig } = require('../config');
 const { isGoogleAuthenticated } = require('../services/googleCalendar');
-const { renderSetupPage, renderSuccessPage } = require('../views');
+const { renderSetupPage } = require('../views');
 
 const router = express.Router();
 
@@ -9,35 +9,37 @@ const router = express.Router();
  * GET /setup - Display setup page
  */
 router.get('/setup', (req, res) => {
-  const authenticated = isGoogleAuthenticated();
-  res.send(renderSetupPage(authenticated));
+  const config = loadConfig();
+  const googleAuthenticated = isGoogleAuthenticated();
+  const clicksendConfigured = config.clicksend && config.clicksend.username && config.clicksend.api_key;
+  
+  res.send(renderSetupPage(googleAuthenticated, clicksendConfigured));
 });
 
 /**
- * POST /save-keys - Save Twilio and Gmail configuration
+ * POST /save-clicksend - Save ClickSend credentials
  */
-router.post('/save-keys', (req, res) => {
+router.post('/save-clicksend', (req, res) => {
   const config = loadConfig();
 
-  config.twilio = {
-    sid: req.body.twilio_sid,
-    auth_token: req.body.twilio_auth_token,
-    phone: req.body.twilio_phone,
-  };
-
-  config.gmail = {
-    user: req.body.gmail_user,
-    password: req.body.gmail_password,
+  config.clicksend = {
+    username: req.body.clicksend_username,
+    api_key: req.body.clicksend_api_key,
   };
 
   saveConfig(config);
 
-  const html = renderSuccessPage(
-    'Configuration Saved',
-    'Your Twilio and Gmail settings have been saved successfully. Now authenticate with Google Calendar to complete the setup.'
-  );
-  
-  res.send(html);
+  res.redirect('/setup');
+});
+
+/**
+ * POST /revoke-clicksend - Remove ClickSend credentials
+ */
+router.post('/revoke-clicksend', (req, res) => {
+  const config = loadConfig();
+  delete config.clicksend;
+  saveConfig(config);
+  res.redirect('/setup');
 });
 
 module.exports = router;

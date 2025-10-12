@@ -1,9 +1,10 @@
 /**
  * Generate setup page HTML
  * @param {boolean} isGoogleAuthenticated - Google authentication status
+ * @param {boolean} isClickSendAuthenticated - ClickSend authentication status
  * @returns {string} HTML content
  */
-function renderSetupPage(isGoogleAuthenticated) {
+function renderSetupPage(isGoogleAuthenticated, isClickSendAuthenticated) {
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -89,7 +90,7 @@ function renderSetupPage(isGoogleAuthenticated) {
           font-size: 12px;
         }
         
-        .twilio-icon { background-color: #f22f46; color: white; }
+        .clicksend-icon { background-color: #00a6e0; color: white; }
         .gmail-icon { background-color: #ea4335; color: white; }
         .google-icon { background-color: #4285f4; color: white; }
         
@@ -273,95 +274,90 @@ function renderSetupPage(isGoogleAuthenticated) {
     <body>
       <div class="container">
         <div class="header">
-          <h1>📅 Calendar Reminder Setup</h1>
-          <p>Configure your API keys and services</p>
+          <h1>🏥 Clinic Appointment Reminder</h1>
+          <p>Connect your services to send SMS reminders to patients</p>
         </div>
         
         <div class="form-container">
-          <form method="POST" action="/save-keys">
-            
-            <div class="section">
-              <div class="section-title">
-                <span class="section-icon twilio-icon">📱</span>
-                Twilio SMS Service
-              </div>
-              
-              <div class="form-group">
-                <label for="twilio_sid">Account SID</label>
-                <input type="text" id="twilio_sid" name="twilio_sid" required placeholder="AC..." />
-                <div class="help-text">Found in your Twilio Console dashboard</div>
-              </div>
-              
-              <div class="form-group">
-                <label for="twilio_auth_token">Auth Token</label>
-                <input type="password" id="twilio_auth_token" name="twilio_auth_token" required />
-                <div class="help-text">Keep this secure - it's like your password</div>
-              </div>
-              
-              <div class="form-group">
-                <label for="twilio_phone">Phone Number</label>
-                <input type="text" id="twilio_phone" name="twilio_phone" required placeholder="+1234567890" />
-                <div class="help-text">Your Twilio phone number in E.164 format</div>
-              </div>
-            </div>
-
-            <div class="section">
-              <div class="section-title">
-                <span class="section-icon gmail-icon">📧</span>
-                Gmail SMTP (Doctor Notifications)
-              </div>
-              
-              <div class="form-group">
-                <label for="gmail_user">Gmail Address</label>
-                <input type="email" id="gmail_user" name="gmail_user" required placeholder="clinic@example.com" />
-                <div class="help-text">The Gmail account to send notifications from</div>
-              </div>
-              
-              <div class="form-group">
-                <label for="gmail_password">Gmail App Password</label>
-                <input type="password" id="gmail_password" name="gmail_password" required />
-                <div class="help-text">
-                  Use an App Password, not your regular Gmail password. 
-                  <a href="https://support.google.com/accounts/answer/185833" target="_blank">Learn how to create one</a>
-                </div>
-              </div>
-            </div>
-            
-            <div class="buttons">
-              <button type="submit" class="btn btn-primary">
-                💾 Save Configuration
-              </button>
-              <a href="/test-email" class="btn btn-secondary">
-                🧪 Test Email
-              </a>
-            </div>
-            
-          </form>
           
+          <!-- Google Calendar Section -->
           <div class="section">
             <div class="google-auth-section ${isGoogleAuthenticated ? 'authenticated' : ''}">
               <div class="section-title">
-                <span class="section-icon google-icon">📅</span>
-                Google Calendar Access
+                <span class="section-icon google-icon">�</span>
+                Google Calendar
               </div>
               
               ${isGoogleAuthenticated ? `
                 <div class="status-badge status-connected">✅ Connected</div>
-                <p>Your Google Calendar is successfully connected and ready to use.</p>
+                <p>Your Google Calendar is successfully connected. We can now access your appointment schedule.</p>
                 <div class="buttons" style="margin-top: 1rem;">
                   <a href="/revoke-google" class="btn btn-danger" style="flex: none;">
-                    🚫 Revoke Access
+                    🚫 Disconnect
                   </a>
                 </div>
               ` : `
                 <div class="status-badge status-disconnected">❌ Not Connected</div>
-                <p>Connect your Google Calendar to enable calendar reminders and notifications.</p>
+                <p>Connect your Google Calendar to access patient appointments.</p>
                 <a href="/auth" class="btn btn-success">
-                  🔐 Sign in with Google
+                  � Sign in with Google
                 </a>
               `}
             </div>
           </div>
+
+          <!-- ClickSend Section -->
+          <div class="section">
+            ${isClickSendAuthenticated ? `
+              <div class="google-auth-section authenticated">
+                <div class="section-title">
+                  <span class="section-icon clicksend-icon">📱</span>
+                  ClickSend SMS Service
+                </div>
+                <div class="status-badge status-connected">✅ Configured</div>
+                <p>ClickSend is successfully configured. You can now send SMS reminders to patients in Ireland! 🇮🇪</p>
+                <form method="POST" action="/revoke-clicksend" style="margin-top: 1rem;">
+                  <button type="submit" class="btn btn-danger" style="width: auto;">
+                    🚫 Remove Credentials
+                  </button>
+                </form>
+              </div>
+            ` : `
+              <div class="section-title">
+                <span class="section-icon clicksend-icon">📱</span>
+                ClickSend SMS Service
+              </div>
+              
+              <form method="POST" action="/save-clicksend">
+                <div class="form-group">
+                  <label for="clicksend_username">Username</label>
+                  <input type="text" id="clicksend_username" name="clicksend_username" required placeholder="your@email.com" />
+                  <div class="help-text">
+                    Your ClickSend username (usually your email) from <a href="https://dashboard.clicksend.com/" target="_blank">ClickSend Dashboard</a>
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="clicksend_api_key">API Key</label>
+                  <input type="password" id="clicksend_api_key" name="clicksend_api_key" required />
+                  <div class="help-text">
+                    Found under API Credentials in your <a href="https://dashboard.clicksend.com/#/account/subaccounts" target="_blank">ClickSend Account</a>
+                  </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                  💾 Save Twilio Credentials
+                </button>
+              </form>
+            `}
+          </div>
+
+          ${isGoogleAuthenticated && isClickSendAuthenticated ? `
+            <div class="section" style="background-color: #e8f5e8; border: 2px solid #c8e6c9; border-radius: 8px; padding: 1.5rem; text-align: center;">
+              <h3 style="color: #34a853; margin: 0 0 0.5rem 0;">🎉 Setup Complete!</h3>
+              <p style="color: #555; margin: 0;">Both services are connected. Your Irish clinic can now send automated SMS reminders for appointments! 🇮🇪</p>
+            </div>
+          ` : ''}
           
         </div>
       </div>

@@ -78,9 +78,13 @@ async function revokeGoogleAccess() {
 
 /**
  * Get calendar events
+ * @param {Object} options - Options for fetching events
+ * @param {Date} options.timeMin - Minimum time for events (default: now)
+ * @param {Date} options.timeMax - Maximum time for events (default: none)
+ * @param {number} options.maxResults - Maximum number of results (default: 10)
  * @returns {Promise<Array>} Array of calendar events
  */
-async function getCalendarEvents() {
+async function getCalendarEvents(options = {}) {
   const config = loadConfig();
   if (!config.google || !config.google.tokens) {
     throw new Error('Google not authenticated');
@@ -91,13 +95,20 @@ async function getCalendarEvents() {
 
   const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
   
-  const events = await calendar.events.list({
+  const queryParams = {
     calendarId: 'primary',
-    timeMin: (new Date()).toISOString(),
-    maxResults: 10,
+    timeMin: (options.timeMin || new Date()).toISOString(),
+    maxResults: options.maxResults || 10,
     singleEvents: true,
     orderBy: 'startTime',
-  });
+  };
+  
+  // Add timeMax if provided
+  if (options.timeMax) {
+    queryParams.timeMax = options.timeMax.toISOString();
+  }
+  
+  const events = await calendar.events.list(queryParams);
 
   return events.data.items;
 }
@@ -133,6 +144,37 @@ async function rescheduleEvent(eventId, newStartTime, newEndTime) {
 }
 
 /**
+ * Mark event as reminded by adding emoji to title
+ * @param {string} eventId - Event ID to update
+ * @param {string} currentTitle - Current event title
+ * @returns {Promise<Object>} Updated event
+ */
+async function markEventAsReminded(eventId, currentTitle) {
+  const config = loadConfig();
+  if (!config.google || !config.google.tokens) {
+    throw new Error('Google not authenticated');
+  }
+
+  const oAuth2Client = getOAuthClient();
+  oAuth2Client.setCredentials(config.google.tokens);
+
+  const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
+  
+  // Add 🔔 emoji to the beginning of the title
+  const newTitle = `🔔 ${currentTitle}`;
+  
+  const updatedEvent = await calendar.events.patch({
+    calendarId: 'primary',
+    eventId,
+    requestBody: {
+      summary: newTitle,
+    },
+  });
+
+  return updatedEvent.data;
+}
+
+/**
  * Check if Google Calendar is authenticated
  * @returns {boolean} Authentication status
  */
@@ -148,5 +190,6 @@ module.exports = {
   revokeGoogleAccess,
   getCalendarEvents,
   rescheduleEvent,
+  markEventAsReminded,
   isGoogleAuthenticated
 };
