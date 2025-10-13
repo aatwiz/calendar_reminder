@@ -1,0 +1,486 @@
+const express = require('express');
+const { getAppointmentByToken, markLinkAsUsed } = require('../services/appointmentLinks');
+const { getCalendarEvents } = require('../services/googleCalendar');
+const { google } = require('googleapis');
+const { loadConfig } = require('../config');
+
+const router = express.Router();
+
+/**
+ * GET /appointment/:token - Display appointment action page
+ */
+router.get('/appointment/:token', async (req, res) => {
+  const { token } = req.params;
+  const appointment = getAppointmentByToken(token);
+  
+  if (!appointment) {
+    return res.status(404).send(renderErrorPage('Invalid or expired link', 'This appointment link is not valid or has expired.'));
+  }
+  
+  if (appointment.used) {
+    return res.send(renderAlreadyUsedPage(appointment));
+  }
+  
+  res.send(renderAppointmentPage(token, appointment));
+});
+
+/**
+ * POST /appointment/:token/action - Handle appointment action
+ */
+router.post('/appointment/:token/action', async (req, res) => {
+  const { token } = req.params;
+  const { action } = req.body;
+  
+  const appointment = getAppointmentByToken(token);
+  
+  if (!appointment) {
+    return res.status(404).json({ error: 'Invalid or expired link' });
+  }
+  
+  if (appointment.used) {
+    return res.status(400).json({ error: 'This link has already been used' });
+  }
+  
+  try {
+    // Load Google Calendar credentials
+    const config = loadConfig();
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    
+    oauth2Client.setCredentials(config.google.tokens);
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    
+    // Get the event
+    const event = await calendar.events.get({
+      calendarId: 'primary',
+      eventId: appointment.eventId
+    });
+    
+    const currentTitle = event.data.summary;
+    let newTitle;
+    let emoji;
+    
+    switch (action) {
+      case 'confirm':
+        emoji = '✅';
+        newTitle = `✅ ${currentTitle}`;
+        break;
+      case 'cancel':
+        emoji = '❌';
+        newTitle = `❌ ${currentTitle}`;
+        break;
+      case 'reschedule':
+        emoji = '❓';
+        newTitle = `❓ ${currentTitle}`;
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid action' });
+    }
+    
+    // Update the event title
+    await calendar.events.patch({
+      calendarId: 'primary',
+      eventId: appointment.eventId,
+      requestBody: {
+        summary: newTitle
+      }
+    });
+    
+    // Mark link as used
+    markLinkAsUsed(token, action);
+    
+    res.json({ 
+      success: true, 
+      action,
+      message: 'Appointment updated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error updating appointment:', error);
+    res.status(500).json({ error: 'Failed to update appointment' });
+  }
+});
+
+/**
+ * Render appointment action page
+ */
+function renderAppointmentPage(token, appointment) {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Appointment Confirmation</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        
+        .container {
+          background: white;
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          max-width: 500px;
+          width: 100%;
+          overflow: hidden;
+        }
+        
+        .header {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 2rem;
+          text-align: center;
+        }
+        
+        .header h1 {
+          font-size: 1.8rem;
+          margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+          opacity: 0.9;
+          font-size: 0.95rem;
+        }
+        
+        .content {
+          padding: 2rem;
+        }
+        
+        .appointment-info {
+          background: #f8f9fa;
+          border-radius: 12px;
+          padding: 1.5rem;
+          margin-bottom: 2rem;
+        }
+        
+        .appointment-info h2 {
+          color: #333;
+          font-size: 1.3rem;
+          margin-bottom: 1rem;
+        }
+        
+        .info-row {
+          display: flex;
+          align-items: center;
+          margin-bottom: 0.75rem;
+          color: #666;
+        }
+        
+        .info-row:last-child {
+          margin-bottom: 0;
+        }
+        
+        .info-icon {
+          margin-right: 0.75rem;
+          font-size: 1.2rem;
+        }
+        
+        .actions {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+        
+        .btn {
+          padding: 1rem 1.5rem;
+          border: none;
+          border-radius: 10px;
+          font-size: 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+        }
+        
+        .btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .btn:active {
+          transform: translateY(0);
+        }
+        
+        .btn-confirm {
+          background: #34a853;
+          color: white;
+        }
+        
+        .btn-cancel {
+          background: #ea4335;
+          color: white;
+        }
+        
+        .btn-reschedule {
+          background: #fbbc04;
+          color: #333;
+        }
+        
+        .result-message {
+          display: none;
+          padding: 1.5rem;
+          border-radius: 12px;
+          text-align: center;
+          font-size: 1.1rem;
+          margin-top: 1rem;
+        }
+        
+        .result-message.success {
+          background: #d4edda;
+          color: #155724;
+          border: 2px solid #c3e6cb;
+        }
+        
+        .result-message.info {
+          background: #fff3cd;
+          color: #856404;
+          border: 2px solid #ffeeba;
+        }
+        
+        .result-message.show {
+          display: block;
+        }
+        
+        .loading {
+          display: none;
+          text-align: center;
+          padding: 2rem;
+        }
+        
+        .loading.show {
+          display: block;
+        }
+        
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
+        .spinner {
+          display: inline-block;
+          width: 40px;
+          height: 40px;
+          border: 4px solid #f3f3f3;
+          border-top: 4px solid #667eea;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🏥 Appointment Confirmation</h1>
+          <p>Please choose an action for your appointment</p>
+        </div>
+        
+        <div class="content">
+          <div class="appointment-info">
+            <h2>Appointment Details</h2>
+            <div class="info-row">
+              <span class="info-icon">👤</span>
+              <span><strong>Patient:</strong> ${appointment.patientName}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-icon">📅</span>
+              <span><strong>Time:</strong> ${new Date(appointment.appointmentTime).toLocaleString()}</span>
+            </div>
+          </div>
+          
+          <div class="actions" id="actions">
+            <button class="btn btn-confirm" onclick="handleAction('confirm')">
+              ✅ Confirm Appointment
+            </button>
+            <button class="btn btn-cancel" onclick="handleAction('cancel')">
+              ❌ Cancel Appointment
+            </button>
+            <button class="btn btn-reschedule" onclick="handleAction('reschedule')">
+              ❓ Reschedule Appointment
+            </button>
+          </div>
+          
+          <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 1rem; color: #666;">Processing...</p>
+          </div>
+          
+          <div class="result-message" id="result"></div>
+        </div>
+      </div>
+      
+      <script>
+        async function handleAction(action) {
+          const actions = document.getElementById('actions');
+          const loading = document.getElementById('loading');
+          const result = document.getElementById('result');
+          
+          // Hide buttons, show loading
+          actions.style.display = 'none';
+          loading.classList.add('show');
+          
+          try {
+            const response = await fetch('/appointment/${token}/action', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ action })
+            });
+            
+            const data = await response.json();
+            
+            loading.classList.remove('show');
+            
+            if (data.success) {
+              if (action === 'confirm') {
+                result.innerHTML = '✅ <strong>Appointment Confirmed!</strong><br>See you at your appointment.';
+                result.className = 'result-message success show';
+              } else if (action === 'cancel') {
+                result.innerHTML = '❌ <strong>Appointment Cancelled</strong><br>Your appointment has been cancelled.';
+                result.className = 'result-message success show';
+              } else if (action === 'reschedule') {
+                const config = require('../config').loadConfig();
+                const clinicPhone = config.clinic?.phone || '(Please contact reception)';
+                result.innerHTML = '❓ <strong>Need to Reschedule?</strong><br>Please call the reception at <strong>' + clinicPhone + '</strong> to reschedule your appointment.';
+                result.className = 'result-message info show';
+              }
+            } else {
+              result.innerHTML = '❌ <strong>Error:</strong> ' + (data.error || 'Something went wrong');
+              result.className = 'result-message show';
+              result.style.background = '#f8d7da';
+              result.style.color = '#721c24';
+            }
+          } catch (error) {
+            loading.classList.remove('show');
+            result.innerHTML = '❌ <strong>Error:</strong> Failed to process your request';
+            result.className = 'result-message show';
+            result.style.background = '#f8d7da';
+            result.style.color = '#721c24';
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Render already used page
+ */
+function renderAlreadyUsedPage(appointment) {
+  let actionText = '';
+  let emoji = '';
+  
+  switch (appointment.action) {
+    case 'confirm':
+      emoji = '✅';
+      actionText = 'confirmed';
+      break;
+    case 'cancel':
+      emoji = '❌';
+      actionText = 'cancelled';
+      break;
+    case 'reschedule':
+      emoji = '❓';
+      actionText = 'marked for rescheduling';
+      break;
+  }
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Link Already Used</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+          background: #f5f5f5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          margin: 0;
+        }
+        .container {
+          background: white;
+          padding: 3rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+          text-align: center;
+          max-width: 400px;
+        }
+        .emoji { font-size: 4rem; margin-bottom: 1rem; }
+        h1 { color: #333; margin-bottom: 1rem; }
+        p { color: #666; line-height: 1.6; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="emoji">${emoji}</div>
+        <h1>Already Processed</h1>
+        <p>This appointment has already been <strong>${actionText}</strong>.</p>
+        <p style="margin-top: 2rem; font-size: 0.9rem;">If you need to make changes, please contact the clinic directly.</p>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Render error page
+ */
+function renderErrorPage(title, message) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${title}</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+          background: #f5f5f5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          margin: 0;
+        }
+        .container {
+          background: white;
+          padding: 3rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+          text-align: center;
+          max-width: 400px;
+        }
+        .emoji { font-size: 4rem; margin-bottom: 1rem; }
+        h1 { color: #ea4335; margin-bottom: 1rem; }
+        p { color: #666; line-height: 1.6; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="emoji">🚫</div>
+        <h1>${title}</h1>
+        <p>${message}</p>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+module.exports = router;

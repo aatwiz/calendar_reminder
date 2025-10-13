@@ -1,10 +1,10 @@
 /**
  * Generate setup page HTML
  * @param {boolean} isGoogleAuthenticated - Google authentication status
- * @param {boolean} isClickSendAuthenticated - ClickSend authentication status
+ * @param {boolean} isTwilioAuthenticated - Twilio authentication status
  * @returns {string} HTML content
  */
-function renderSetupPage(isGoogleAuthenticated, isClickSendAuthenticated) {
+function renderSetupPage(isGoogleAuthenticated, isTwilioAuthenticated) {
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -90,7 +90,7 @@ function renderSetupPage(isGoogleAuthenticated, isClickSendAuthenticated) {
           font-size: 12px;
         }
         
-        .clicksend-icon { background-color: #00a6e0; color: white; }
+        .twilio-icon { background-color: #f22f46; color: white; }
         .gmail-icon { background-color: #ea4335; color: white; }
         .google-icon { background-color: #4285f4; color: white; }
         
@@ -306,17 +306,17 @@ function renderSetupPage(isGoogleAuthenticated, isClickSendAuthenticated) {
             </div>
           </div>
 
-          <!-- ClickSend Section -->
+          <!-- Twilio Section -->
           <div class="section">
-            ${isClickSendAuthenticated ? `
+            ${isTwilioAuthenticated ? `
               <div class="google-auth-section authenticated">
                 <div class="section-title">
-                  <span class="section-icon clicksend-icon">📱</span>
-                  ClickSend SMS Service
+                  <span class="section-icon twilio-icon">📱</span>
+                  Twilio SMS Service
                 </div>
                 <div class="status-badge status-connected">✅ Configured</div>
-                <p>ClickSend is successfully configured. You can now send SMS reminders to patients in Ireland! 🇮🇪</p>
-                <form method="POST" action="/revoke-clicksend" style="margin-top: 1rem;">
+                <p>Twilio is successfully configured. You can now send SMS reminders to patients.</p>
+                <form method="POST" action="/revoke-twilio" style="margin-top: 1rem;">
                   <button type="submit" class="btn btn-danger" style="width: auto;">
                     🚫 Remove Credentials
                   </button>
@@ -324,25 +324,35 @@ function renderSetupPage(isGoogleAuthenticated, isClickSendAuthenticated) {
               </div>
             ` : `
               <div class="section-title">
-                <span class="section-icon clicksend-icon">📱</span>
-                ClickSend SMS Service
+                <span class="section-icon twilio-icon">📱</span>
+                Twilio SMS Service
               </div>
               
-              <form method="POST" action="/save-clicksend">
+              <form method="POST" action="/save-twilio">
                 <div class="form-group">
-                  <label for="clicksend_username">Username</label>
-                  <input type="text" id="clicksend_username" name="clicksend_username" required placeholder="your@email.com" />
+                  <label for="twilio_sid">Account SID</label>
+                  <input type="text" id="twilio_sid" name="twilio_sid" required placeholder="AC..." />
                   <div class="help-text">
-                    Your ClickSend username (usually your email) from <a href="https://dashboard.clicksend.com/" target="_blank">ClickSend Dashboard</a>
+                    Found in your <a href="https://console.twilio.com/" target="_blank">Twilio Console</a> dashboard
                   </div>
                 </div>
                 
                 <div class="form-group">
-                  <label for="clicksend_api_key">API Key</label>
-                  <input type="password" id="clicksend_api_key" name="clicksend_api_key" required />
-                  <div class="help-text">
-                    Found under API Credentials in your <a href="https://dashboard.clicksend.com/#/account/subaccounts" target="_blank">ClickSend Account</a>
-                  </div>
+                  <label for="twilio_auth_token">Auth Token</label>
+                  <input type="password" id="twilio_auth_token" name="twilio_auth_token" required />
+                  <div class="help-text">Keep this secure - it's like your password</div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="twilio_phone">Phone Number</label>
+                  <input type="text" id="twilio_phone" name="twilio_phone" required placeholder="+1234567890" />
+                  <div class="help-text">Your Twilio phone number in E.164 format (e.g., +1234567890)</div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="clinic_phone">Clinic Reception Phone</label>
+                  <input type="text" id="clinic_phone" name="clinic_phone" placeholder="+353123456789" />
+                  <div class="help-text">Phone number patients should call to reschedule (optional)</div>
                 </div>
                 
                 <button type="submit" class="btn btn-primary" style="width: 100%;">
@@ -352,10 +362,10 @@ function renderSetupPage(isGoogleAuthenticated, isClickSendAuthenticated) {
             `}
           </div>
 
-          ${isGoogleAuthenticated && isClickSendAuthenticated ? `
+          ${isGoogleAuthenticated && isTwilioAuthenticated ? `
             <div class="section" style="background-color: #e8f5e8; border: 2px solid #c8e6c9; border-radius: 8px; padding: 1.5rem; text-align: center;">
               <h3 style="color: #34a853; margin: 0 0 0.5rem 0;">🎉 Setup Complete!</h3>
-              <p style="color: #555; margin: 0;">Both services are connected. Your Irish clinic can now send automated SMS reminders for appointments! 🇮🇪</p>
+              <p style="color: #555; margin: 0;">Both services are connected. Your clinic can now send automated SMS reminders for appointments!</p>
             </div>
           ` : ''}
           

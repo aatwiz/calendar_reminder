@@ -15,23 +15,141 @@ app.use(bodyParser.json());
 // Import routes
 const setupRoutes = require('./src/routes/setup');
 const authRoutes = require('./src/routes/auth');
+const appointmentsRoutes = require('./src/routes/appointments');
 const { loadConfig } = require('./src/config');
 const { isGoogleAuthenticated, getCalendarEvents, markEventAsReminded } = require('./src/services/googleCalendar');
-const axios = require('axios');
+const twilio = require('twilio');
+const { createAppointmentLink, cleanupOldAppointments } = require('./src/services/appointmentLinks');
+
+/**
+ * Process and send SMS to a calendar event
+ * @param {Object} event - Calendar event object
+ * @param {Object} twilioClient - Initialized Twilio client
+ * @param {string} twilioPhone - Twilio phone number to send from
+ * @param {boolean} verbose - Whether to log detailed info (for manual endpoint)
+ * @returns {Object} Result object with status, message, etc.
+ */
+async function processSMSForEvent(event, twilioClient, twilioPhone, verbose = false) {
+  const title = event.summary || '';
+  const logPrefix = verbose ? '' : '   ';
+  
+  if (verbose) {
+    console.log(`\n--- Processing Event ---`);
+    console.log(`Title: ${title}`);
+  } else {
+    console.log(`\n${logPrefix}📌 Processing: ${title}`);
+    const eventStart = event.start.dateTime || event.start.date;
+    console.log(`${logPrefix}Appointment time: ${new Date(eventStart).toLocaleString()}`);
+  }
+  
+  // Split by # to get the parts
+  const parts = title.split('#');
+  
+  if (parts.length < 2) {
+    console.log(`${logPrefix}⚠️  No content after "#", skipping...`);
+    return {
+      title,
+      status: 'skipped',
+      reason: 'No content after #'
+    };
+  }
+  
+  const beforeHash = parts[0].trim(); // Everything before #
+  const afterHash = parts[1].trim();  // Everything after # (phone number)
+  
+  // Extract and format phone number
+  let phoneNumber = afterHash.replace(/[\s\-\(\)]/g, '');
+  let fullPhoneNumber;
+  
+  if (phoneNumber.startsWith('+')) {
+    fullPhoneNumber = phoneNumber;
+  } else {
+    // Add Ireland prefix (+353) by default
+    fullPhoneNumber = `+353${phoneNumber}`;
+  }
+  
+  // Generate unique appointment link
+  const eventStart = event.start.dateTime || event.start.date;
+  const appointmentLink = createAppointmentLink(event.id, beforeHash, eventStart);
+  const fullUrl = `http://localhost:3000/appointment/${appointmentLink}`;
+  
+  // Create message with appointment link
+  const message = `Hello ${beforeHash}! Manage your appointment: ${fullUrl}`;
+  
+  if (verbose) {
+    console.log(`📝 Message: "${message}"`);
+    console.log(`📞 Raw Phone: ${afterHash}`);
+    console.log(`📞 Formatted: ${fullPhoneNumber}`);
+    console.log(`📤 Attempting to send SMS...`);
+  } else {
+    console.log(`${logPrefix}📝 Message: "${message}"`);
+    console.log(`${logPrefix}📞 Phone: ${fullPhoneNumber}`);
+  }
+  
+  try {
+    // Send SMS via Twilio
+    const smsResult = await twilioClient.messages.create({
+      body: message,
+      from: twilioPhone,
+      to: fullPhoneNumber
+    });
+    
+    console.log(`${logPrefix}✅ SMS sent! SID: ${smsResult.sid}`);
+    
+    // Mark the calendar event as reminded by adding 🔔 emoji
+    try {
+      await markEventAsReminded(event.id, title);
+      console.log(`${logPrefix}🔔 Event marked as reminded in calendar`);
+    } catch (markError) {
+      console.error(`${logPrefix}⚠️  Could not mark event: ${markError.message}`);
+    }
+    
+    return {
+      title,
+      beforeHash,
+      phoneNumber: afterHash,
+      fullPhoneNumber,
+      message,
+      status: 'sent',
+      sid: smsResult.sid
+    };
+    
+  } catch (smsError) {
+    console.error(`${logPrefix}❌ Failed: ${smsError.message}`);
+    
+    // Check for common Twilio errors (only in verbose mode)
+    if (verbose && smsError.message.includes('Permission to send an SMS has not been enabled')) {
+      console.error(`💡 TIP: This number's region may not be enabled in your Twilio account.`);
+      console.error(`   - For trial accounts: Verify this number in Twilio Console`);
+      console.error(`   - Or upgrade your Twilio account to enable this region`);
+    }
+    
+    return {
+      title,
+      beforeHash,
+      phoneNumber: afterHash,
+      fullPhoneNumber,
+      message,
+      status: 'failed',
+      error: smsError.message,
+      errorCode: smsError.code
+    };
+  }
+}
 
 // Root route - redirect to setup if not configured
 app.get('/', (req, res) => {
   const config = loadConfig();
   const googleAuth = isGoogleAuthenticated();
-  const clicksendConfigured = config.clicksend && config.clicksend.username && config.clicksend.api_key;
+  const twilioConfigured = config.twilio && config.twilio.sid && config.twilio.auth_token;
   
   // If nothing is configured, go to setup
-  if (!googleAuth && !clicksendConfigured) {
+  if (!googleAuth && !twilioConfigured) {
     return res.redirect('/setup');
   }
   
   // If partially configured, go to setup
-  if (!googleAuth || !clicksendConfigured) {
+  if (!googleAuth || !twilioConfigured) {
     return res.redirect('/setup');
   }
   
@@ -189,18 +307,18 @@ app.get('/send-reminders', async (req, res) => {
   try {
     console.log('\n📱 ===== SENDING SMS REMINDERS =====');
     
-    // Check if ClickSend is configured
+    // Check if Twilio is configured
     const config = loadConfig();
-    if (!config.clicksend || !config.clicksend.username || !config.clicksend.api_key) {
-      console.log('❌ ClickSend not configured');
+    if (!config.twilio || !config.twilio.sid || !config.twilio.auth_token) {
+      console.log('❌ Twilio not configured');
       return res.status(400).json({ 
-        error: 'ClickSend not configured',
-        message: 'Please configure ClickSend credentials at /setup'
+        error: 'Twilio not configured',
+        message: 'Please configure Twilio credentials at /setup'
       });
     }
     
-    // ClickSend API credentials
-    const clicksendAuth = Buffer.from(`${config.clicksend.username}:${config.clicksend.api_key}`).toString('base64');
+    // Initialize Twilio client
+    const twilioClient = twilio(config.twilio.sid, config.twilio.auth_token);
     
     // Fetch calendar events
     console.log('📅 Fetching calendar events...');
@@ -234,112 +352,10 @@ app.get('/send-reminders', async (req, res) => {
     
     const results = [];
     
-    // Process each event
+    // Process each event using shared function
     for (const event of eventsWithHash) {
-      const title = event.summary || '';
-      console.log(`\n--- Processing Event ---`);
-      console.log(`Title: ${title}`);
-      
-      // Split by # to get the parts
-      const parts = title.split('#');
-      
-      if (parts.length < 2) {
-        console.log('⚠️  No content after "#", skipping...');
-        results.push({
-          title,
-          status: 'skipped',
-          reason: 'No content after #'
-        });
-        continue;
-      }
-      
-      const beforeHash = parts[0].trim(); // Everything before #
-      const afterHash = parts[1].trim();  // Everything after # (phone number)
-      
-      // Extract phone number (everything after #)
-      let phoneNumber = afterHash;
-      
-      // Format: Remove any spaces, hyphens, or special characters
-      phoneNumber = phoneNumber.replace(/[\s\-\(\)]/g, '');
-      
-      let fullPhoneNumber;
-      if (phoneNumber.startsWith('+')) {
-        // Already has country code
-        fullPhoneNumber = phoneNumber;
-      } else {
-        // Add Ireland prefix (+353) by default
-        fullPhoneNumber = `+353${phoneNumber}`;
-      }
-      
-      // Create message
-      const message = `Hello ${beforeHash}!`;
-      
-      console.log(`📝 Message: "${message}"`);
-      console.log(`📞 Raw Phone: ${afterHash}`);
-      console.log(`📞 Formatted: ${fullPhoneNumber}`);
-      
-      try {
-        // Send SMS via ClickSend REST API
-        console.log(`📤 Attempting to send SMS...`);
-        
-        const smsResult = await axios.post(
-          'https://rest.clicksend.com/v3/sms/send',
-          {
-            messages: [
-              {
-                to: fullPhoneNumber,
-                body: message,
-                source: 'sdk'
-              }
-            ]
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Basic ${clicksendAuth}`
-            }
-          }
-        );
-        
-        console.log(`✅ SMS sent successfully! Message ID: ${smsResult.data.data.messages[0].message_id}`);
-        
-        // Mark the calendar event as reminded by adding 🔔 emoji
-        try {
-          await markEventAsReminded(event.id, title);
-          console.log(`🔔 Event marked as reminded in calendar`);
-        } catch (markError) {
-          console.error(`⚠️  Could not mark event: ${markError.message}`);
-        }
-        
-        results.push({
-          title,
-          beforeHash,
-          phoneNumber: afterHash,
-          fullPhoneNumber,
-          message,
-          status: 'sent',
-          messageId: smsResult.data.data.messages[0].message_id
-        });
-        
-      } catch (smsError) {
-        console.error(`❌ Failed to send SMS: ${smsError.response?.data?.response_msg || smsError.message}`);
-        
-        // Check for common ClickSend errors
-        if (smsError.response?.data?.response_msg) {
-          console.error(`💡 ClickSend Error: ${smsError.response.data.response_msg}`);
-        }
-        
-        results.push({
-          title,
-          beforeHash,
-          phoneNumber: afterHash,
-          fullPhoneNumber,
-          message,
-          status: 'failed',
-          error: smsError.message,
-          errorCode: smsError.code
-        });
-      }
+      const result = await processSMSForEvent(event, twilioClient, config.twilio.phone, true);
+      results.push(result);
     }
     
     console.log(`\n📊 Summary:`);
@@ -377,6 +393,38 @@ app.get('/send-reminders', async (req, res) => {
   }
 });
 
+/**
+ * GET /cleanup-appointments - Manual cleanup of old appointment links
+ * Removes appointments older than 7 days from appointment time
+ */
+app.get('/cleanup-appointments', (req, res) => {
+  try {
+    console.log('\n🧹 Manual cleanup triggered...');
+    const result = cleanupOldAppointments();
+    
+    console.log(`📊 Cleanup completed:`);
+    console.log(`   Total: ${result.totalBefore}, Removed: ${result.removed}, Remaining: ${result.remaining}`);
+    
+    res.json({
+      success: true,
+      message: 'Cleanup completed successfully',
+      statistics: {
+        totalBefore: result.totalBefore,
+        removed: result.removed,
+        remaining: result.remaining
+      },
+      removedAppointments: result.removedAppointments
+    });
+  } catch (error) {
+    console.error('❌ Error during cleanup:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Cleanup failed',
+      details: error.message
+    });
+  }
+});
+
 // Automated reminder function
 async function sendAutomatedReminders() {
   try {
@@ -390,13 +438,13 @@ async function sendAutomatedReminders() {
       return;
     }
     
-    if (!config.clicksend || !config.clicksend.username || !config.clicksend.api_key) {
-      console.log('⚠️  ClickSend not configured. Skipping...');
+    if (!config.twilio || !config.twilio.sid || !config.twilio.auth_token) {
+      console.log('⚠️  Twilio not configured. Skipping...');
       return;
     }
     
-    // ClickSend API credentials
-    const clicksendAuth = Buffer.from(`${config.clicksend.username}:${config.clicksend.api_key}`).toString('base64');
+    // Initialize Twilio client
+    const twilioClient = twilio(config.twilio.sid, config.twilio.auth_token);
     
     // Calculate time range: now to 48 hours from now
     const now = new Date();
@@ -438,77 +486,13 @@ async function sendAutomatedReminders() {
     let sentCount = 0;
     let failedCount = 0;
     
-    // Process each event
+    // Process each event using shared function
     for (const event of eventsWithHash) {
-      const title = event.summary || '';
-      const eventStart = event.start.dateTime || event.start.date;
+      const result = await processSMSForEvent(event, twilioClient, config.twilio.phone, false);
       
-      console.log(`\n📌 Processing: ${title}`);
-      console.log(`   Appointment time: ${new Date(eventStart).toLocaleString()}`);
-      
-      // Split by # to get the parts
-      const parts = title.split('#');
-      
-      if (parts.length < 2) {
-        console.log('⚠️  No content after "#", skipping...');
-        continue;
-      }
-      
-      const beforeHash = parts[0].trim();
-      const afterHash = parts[1].trim();
-      
-      // Extract and format phone number
-      let phoneNumber = afterHash.replace(/[\s\-\(\)]/g, '');
-      let fullPhoneNumber;
-      
-      if (phoneNumber.startsWith('+')) {
-        fullPhoneNumber = phoneNumber;
-      } else {
-        // Add Ireland prefix (+353) by default
-        fullPhoneNumber = `+353${phoneNumber}`;
-      }
-      
-      // Create message
-      const message = `Hello ${beforeHash}!`;
-      
-      console.log(`   📝 Message: "${message}"`);
-      console.log(`   📞 Phone: ${fullPhoneNumber}`);
-      
-      try {
-        // Send SMS via ClickSend REST API
-        const smsResult = await axios.post(
-          'https://rest.clicksend.com/v3/sms/send',
-          {
-            messages: [
-              {
-                to: fullPhoneNumber,
-                body: message,
-                source: 'sdk'
-              }
-            ]
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Basic ${clicksendAuth}`
-            }
-          }
-        );
-        
-        console.log(`   ✅ SMS sent! ID: ${smsResult.data.data.messages[0].message_id}`);
-        
-        // Mark the calendar event as reminded by adding 🔔 emoji
-        try {
-          await markEventAsReminded(event.id, title);
-          console.log(`   🔔 Event marked as reminded in calendar`);
-        } catch (markError) {
-          console.error(`   ⚠️  Could not mark event: ${markError.message}`);
-        }
-        
+      if (result.status === 'sent') {
         sentCount++;
-        
-      } catch (smsError) {
-        console.error(`   ❌ Failed: ${smsError.response?.data?.response_msg || smsError.message}`);
+      } else if (result.status === 'failed') {
         failedCount++;
       }
     }
@@ -527,22 +511,53 @@ async function sendAutomatedReminders() {
 
 // Schedule automated reminders every 15 minutes
 // Cron format: */15 * * * * = every 15 minutes
-const cronJob = cron.schedule('*/15 * * * *', () => {
+const reminderCronJob = cron.schedule('*/15 * * * *', () => {
   sendAutomatedReminders();
 }, {
   scheduled: true,
   timezone: "Europe/Amsterdam" // Adjust to your timezone
 });
 
+// Schedule cleanup of old appointments daily at midnight
+// Cron format: 0 0 * * * = every day at 00:00
+const cleanupCronJob = cron.schedule('0 0 * * *', () => {
+  console.log('\n🧹 ===== APPOINTMENT CLEANUP =====');
+  console.log(`📅 Time: ${new Date().toLocaleString()}`);
+  console.log('🗑️  Removing appointments older than 7 days...');
+  
+  const result = cleanupOldAppointments();
+  
+  console.log(`📊 Cleanup Summary:`);
+  console.log(`   Total links before: ${result.totalBefore}`);
+  console.log(`   Links removed: ${result.removed}`);
+  console.log(`   Links remaining: ${result.remaining}`);
+  
+  if (result.removed > 0) {
+    console.log(`\n🗑️  Removed appointments:`);
+    result.removedAppointments.forEach(apt => {
+      console.log(`   - ${apt.patientName} (${new Date(apt.appointmentTime).toLocaleString()}) - ${apt.action}`);
+    });
+  } else {
+    console.log('   ✨ No old appointments to remove');
+  }
+  
+  console.log('===== END OF CLEANUP =====\n');
+}, {
+  scheduled: true,
+  timezone: "Europe/Amsterdam"
+});
+
 // Use routes
 app.use('/', setupRoutes);
 app.use('/', authRoutes);
+app.use('/', appointmentsRoutes);
 
 // Start server
 app.listen(port, () => {
   console.log(`🚀 Server running at http://localhost:${port}`);
   console.log(`➡ Go to http://localhost:${port}/setup to configure authentication`);
   console.log(`⏰ Automated reminders scheduled: Every 15 minutes`);
+  console.log(`🧹 Cleanup scheduled: Daily at midnight (removes appointments >7 days old)`);
   console.log(`🌍 Timezone: Europe/Amsterdam`);
   console.log(`📱 Checking for appointments in next 48 hours\n`);
   
