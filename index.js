@@ -11,6 +11,7 @@ const port = 3000;
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(express.static('public')); // Serve static files from public folder
 
 // Import routes
 const setupRoutes = require('./src/routes/setup');
@@ -65,7 +66,7 @@ async function processSMSForEvent(event, twilioClient, twilioPhone, verbose = fa
     fullPhoneNumber = phoneNumber;
   } else {
     // Add Ireland prefix (+353) by default
-    fullPhoneNumber = `+353${phoneNumber}`;
+    fullPhoneNumber = `+31${phoneNumber}`;
   }
   
   // Generate unique appointment link
@@ -332,10 +333,13 @@ app.get('/send-reminders', async (req, res) => {
       });
     }
     
-    // Filter events with # in title
+    // Filter events with # in title, excluding those with status emojis
     const eventsWithHash = events.filter(event => {
       const title = event.summary || '';
-      return title.includes('#');
+      const hasHash = title.includes('#');
+      const hasStatusEmoji = title.startsWith('🔔') || title.startsWith('✅') || 
+                            title.startsWith('❌') || title.startsWith('❓');
+      return hasHash && !hasStatusEmoji;
     });
     
     console.log(`✅ Found ${events.length} total event(s)`);
@@ -468,10 +472,13 @@ async function sendAutomatedReminders() {
     }
     
     // Filter events with # in title (patient appointments)
-    // Exclude events that already have 🔔 (already reminded)
+    // Exclude events that already have status emojis (🔔 reminded, ✅ confirmed, ❌ cancelled, ❓ reschedule)
     const eventsWithHash = events.filter(event => {
       const title = event.summary || '';
-      return title.includes('#') && !title.startsWith('🔔');
+      const hasHash = title.includes('#');
+      const hasStatusEmoji = title.startsWith('🔔') || title.startsWith('✅') || 
+                            title.startsWith('❌') || title.startsWith('❓');
+      return hasHash && !hasStatusEmoji;
     });
     
     console.log(`✅ Found ${events.length} total event(s) in next 48 hours`);
