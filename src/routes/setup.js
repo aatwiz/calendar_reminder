@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const { loadConfig, saveConfig } = require('../config');
 const { isGoogleAuthenticated } = require('../services/googleCalendar');
 const { renderSetupPage } = require('../views');
@@ -11,27 +12,35 @@ const router = express.Router();
 router.get('/setup', (req, res) => {
   const config = loadConfig();
   const googleAuthenticated = isGoogleAuthenticated();
-  const twilioConfigured = config.twilio && config.twilio.sid && config.twilio.auth_token;
+  const whatsappConfigured = config.whatsapp && config.whatsapp.phone_number_id && config.whatsapp.access_token;
   
-  res.send(renderSetupPage(googleAuthenticated, twilioConfigured));
+  res.send(renderSetupPage(googleAuthenticated, whatsappConfigured));
 });
 
 /**
- * POST /save-twilio - Save Twilio credentials and clinic phone
+ * POST /save-whatsapp - Save WhatsApp Business credentials
  */
-router.post('/save-twilio', (req, res) => {
+router.post('/save-whatsapp', (req, res) => {
   const config = loadConfig();
 
-  config.twilio = {
-    sid: req.body.twilio_sid,
-    auth_token: req.body.twilio_auth_token,
-    phone: req.body.twilio_phone,
+  // Generate verify token if not provided
+  const verifyToken = req.body.verify_token || crypto.randomBytes(32).toString('hex');
+
+  config.whatsapp = {
+    phone_number_id: req.body.phone_number_id,
+    business_account_id: req.body.business_account_id,
+    access_token: req.body.access_token,
+    verify_token: verifyToken
   };
   
-  // Save clinic phone number for reschedule messages
+  // Save clinic phone number for patient messages
   if (req.body.clinic_phone) {
-    config.clinic = config.clinic || {};
-    config.clinic.phone = req.body.clinic_phone;
+    config.clinic_phone = req.body.clinic_phone;
+  }
+
+  // Save template name
+  if (req.body.template_name) {
+    config.template_name = req.body.template_name;
   }
 
   saveConfig(config);
@@ -40,11 +49,11 @@ router.post('/save-twilio', (req, res) => {
 });
 
 /**
- * POST /revoke-twilio - Remove Twilio credentials
+ * POST /revoke-whatsapp - Remove WhatsApp credentials
  */
-router.post('/revoke-twilio', (req, res) => {
+router.post('/revoke-whatsapp', (req, res) => {
   const config = loadConfig();
-  delete config.twilio;
+  delete config.whatsapp;
   saveConfig(config);
   res.redirect('/setup');
 });

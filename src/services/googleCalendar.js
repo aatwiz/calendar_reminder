@@ -175,6 +175,49 @@ async function markEventAsReminded(eventId, currentTitle) {
 }
 
 /**
+ * Update event title with emoji (for appointment actions)
+ * Removes existing status emoji and adds new one
+ * @param {string} eventId - Event ID to update
+ * @param {string} emoji - Emoji to add (✅, ❌, ❓)
+ * @returns {Promise<Object>} Updated event
+ */
+async function updateEventTitle(eventId, emoji) {
+  const config = loadConfig();
+  if (!config.google || !config.google.tokens) {
+    throw new Error('Google not authenticated');
+  }
+
+  const oAuth2Client = getOAuthClient();
+  oAuth2Client.setCredentials(config.google.tokens);
+
+  const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
+  
+  // Get current event
+  const event = await calendar.events.get({
+    calendarId: 'primary',
+    eventId
+  });
+
+  let currentTitle = event.data.summary;
+  
+  // Remove any existing status emoji (🔔, ✅, ❌, ❓) from the beginning
+  currentTitle = currentTitle.replace(/^[🔔✅❌❓]\s*/, '').trim();
+  
+  // Add new emoji
+  const newTitle = `${emoji} ${currentTitle}`;
+  
+  const updatedEvent = await calendar.events.patch({
+    calendarId: 'primary',
+    eventId,
+    requestBody: {
+      summary: newTitle,
+    },
+  });
+
+  return updatedEvent.data;
+}
+
+/**
  * Check if Google Calendar is authenticated
  * @returns {boolean} Authentication status
  */
@@ -191,5 +234,6 @@ module.exports = {
   getCalendarEvents,
   rescheduleEvent,
   markEventAsReminded,
+  updateEventTitle,
   isGoogleAuthenticated
 };

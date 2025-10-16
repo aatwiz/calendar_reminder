@@ -1,10 +1,10 @@
 /**
  * Generate setup page HTML
  * @param {boolean} isGoogleAuthenticated - Google authentication status
- * @param {boolean} isTwilioAuthenticated - Twilio authentication status
+ * @param {boolean} isWhatsAppAuthenticated - WhatsApp Business authentication status
  * @returns {string} HTML content
  */
-function renderSetupPage(isGoogleAuthenticated, isTwilioAuthenticated) {
+function renderSetupPage(isGoogleAuthenticated, isWhatsAppAuthenticated) {
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -12,270 +12,13 @@ function renderSetupPage(isGoogleAuthenticated, isTwilioAuthenticated) {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Setup API Keys</title>
-      <style>
-        * {
-          box-sizing: border-box;
-        }
-        
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-          background-color: #f5f5f5;
-          margin: 0;
-          padding: 20px;
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        
-        .container {
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-          max-width: 500px;
-          width: 100%;
-          overflow: hidden;
-        }
-        
-        .header {
-          background-color: #4285f4;
-          color: white;
-          padding: 2rem;
-          text-align: center;
-        }
-        
-        .header h1 {
-          margin: 0;
-          font-size: 1.8rem;
-          font-weight: 600;
-        }
-        
-        .header p {
-          margin: 0.5rem 0 0 0;
-          opacity: 0.9;
-          font-size: 0.95rem;
-        }
-        
-        .form-container {
-          padding: 2rem;
-        }
-        
-        .section {
-          margin-bottom: 2rem;
-        }
-        
-        .section:last-child {
-          margin-bottom: 0;
-        }
-        
-        .section-title {
-          font-size: 1.1rem;
-          font-weight: 600;
-          color: #333;
-          margin-bottom: 1rem;
-          padding-bottom: 0.5rem;
-          border-bottom: 2px solid #f0f0f0;
-          display: flex;
-          align-items: center;
-        }
-        
-        .section-icon {
-          width: 20px;
-          height: 20px;
-          margin-right: 10px;
-          border-radius: 4px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 12px;
-        }
-        
-        .twilio-icon { background-color: #f22f46; color: white; }
-        .gmail-icon { background-color: #ea4335; color: white; }
-        .google-icon { background-color: #4285f4; color: white; }
-        
-        .form-group {
-          margin-bottom: 1rem;
-        }
-        
-        label {
-          display: block;
-          margin-bottom: 0.5rem;
-          font-weight: 500;
-          color: #555;
-          font-size: 0.9rem;
-        }
-        
-        input[type="text"],
-        input[type="email"],
-        input[type="password"] {
-          width: 100%;
-          padding: 0.75rem;
-          border: 2px solid #e1e5e9;
-          border-radius: 8px;
-          font-size: 0.95rem;
-          transition: border-color 0.2s ease;
-          background: #fafbfc;
-        }
-        
-        input[type="text"]:focus,
-        input[type="email"]:focus,
-        input[type="password"]:focus {
-          outline: none;
-          border-color: #4285f4;
-          background: white;
-          box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1);
-        }
-        
-        .help-text {
-          font-size: 0.8rem;
-          color: #666;
-          margin-top: 0.25rem;
-          line-height: 1.4;
-        }
-        
-        .help-text a {
-          color: #4285f4;
-          text-decoration: none;
-        }
-        
-        .help-text a:hover {
-          text-decoration: underline;
-        }
-        
-        .buttons {
-          display: flex;
-          gap: 1rem;
-          margin-top: 2rem;
-        }
-        
-        .btn {
-          flex: 1;
-          padding: 0.875rem 1.5rem;
-          border: none;
-          border-radius: 8px;
-          font-size: 0.95rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          text-decoration: none;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-        }
-        
-        .btn-primary {
-          background-color: #4285f4;
-          color: white;
-        }
-        
-        .btn-primary:hover {
-          background-color: #3367d6;
-          transform: translateY(-1px);
-        }
-        
-        .btn-secondary {
-          background-color: #f8f9fa;
-          color: #5f6368;
-          border: 2px solid #e8eaed;
-        }
-        
-        .btn-secondary:hover {
-          background-color: #e8f0fe;
-          border-color: #4285f4;
-          color: #4285f4;
-        }
-        
-        .btn-success {
-          background-color: #34a853;
-          color: white;
-        }
-        
-        .btn-success:hover {
-          background-color: #2d8f47;
-        }
-        
-        .btn-danger {
-          background-color: #ea4335;
-          color: white;
-        }
-        
-        .btn-danger:hover {
-          background-color: #d33b2c;
-        }
-        
-        .google-auth-section {
-          background-color: #f8f9ff;
-          border: 2px solid #e8f0fe;
-          border-radius: 8px;
-          padding: 1.5rem;
-          text-align: center;
-        }
-        
-        .google-auth-section.authenticated {
-          background-color: #e8f5e8;
-          border-color: #c8e6c9;
-        }
-        
-        .google-auth-section h3 {
-          margin: 0 0 0.5rem 0;
-          color: #4285f4;
-        }
-        
-        .google-auth-section.authenticated h3 {
-          color: #34a853;
-        }
-        
-        .google-auth-section p {
-          margin: 0 0 1rem 0;
-          color: #666;
-          font-size: 0.9rem;
-        }
-        
-        .status-badge {
-          display: inline-block;
-          padding: 0.25rem 0.75rem;
-          border-radius: 20px;
-          font-size: 0.8rem;
-          font-weight: 500;
-          margin-bottom: 1rem;
-        }
-        
-        .status-connected {
-          background-color: #e8f5e8;
-          color: #2e7d32;
-        }
-        
-        .status-disconnected {
-          background-color: #ffebee;
-          color: #c62828;
-        }
-        
-        @media (max-width: 600px) {
-          body {
-            padding: 10px;
-          }
-          
-          .buttons {
-            flex-direction: column;
-          }
-          
-          .header {
-            padding: 1.5rem;
-          }
-          
-          .form-container {
-            padding: 1.5rem;
-          }
-        }
-      </style>
+      <link rel="stylesheet" href="/styles.css">
     </head>
     <body>
       <div class="container">
         <div class="header">
           <h1>🏥 Clinic Appointment Reminder</h1>
-          <p>Connect your services to send SMS reminders to patients</p>
+          <p>Connect your services to send WhatsApp reminders to patients</p>
         </div>
         
         <div class="form-container">
@@ -306,17 +49,17 @@ function renderSetupPage(isGoogleAuthenticated, isTwilioAuthenticated) {
             </div>
           </div>
 
-          <!-- Twilio Section -->
+          <!-- WhatsApp Business Section -->
           <div class="section">
-            ${isTwilioAuthenticated ? `
+            ${isWhatsAppAuthenticated ? `
               <div class="google-auth-section authenticated">
                 <div class="section-title">
-                  <span class="section-icon twilio-icon">📱</span>
-                  Twilio SMS Service
+                  <span class="section-icon twilio-icon">�</span>
+                  WhatsApp Business API
                 </div>
                 <div class="status-badge status-connected">✅ Configured</div>
-                <p>Twilio is successfully configured. You can now send SMS reminders to patients.</p>
-                <form method="POST" action="/revoke-twilio" style="margin-top: 1rem;">
+                <p>WhatsApp Business is successfully configured. You can now send WhatsApp reminders to patients.</p>
+                <form method="POST" action="/revoke-whatsapp" style="margin-top: 1rem;">
                   <button type="submit" class="btn btn-danger" style="width: auto;">
                     🚫 Remove Credentials
                   </button>
@@ -324,48 +67,54 @@ function renderSetupPage(isGoogleAuthenticated, isTwilioAuthenticated) {
               </div>
             ` : `
               <div class="section-title">
-                <span class="section-icon twilio-icon">📱</span>
-                Twilio SMS Service
+                <span class="section-icon twilio-icon">�</span>
+                WhatsApp Business API
               </div>
               
-              <form method="POST" action="/save-twilio">
+              <form method="POST" action="/save-whatsapp">
                 <div class="form-group">
-                  <label for="twilio_sid">Account SID</label>
-                  <input type="text" id="twilio_sid" name="twilio_sid" required placeholder="AC..." />
+                  <label for="phone_number_id">Phone Number ID</label>
+                  <input type="text" id="phone_number_id" name="phone_number_id" required placeholder="123456789012345" />
                   <div class="help-text">
-                    Found in your <a href="https://console.twilio.com/" target="_blank">Twilio Console</a> dashboard
+                    Found in <a href="https://developers.facebook.com/" target="_blank">Meta Developer Console</a> → Your App → WhatsApp → Phone Numbers
                   </div>
                 </div>
                 
                 <div class="form-group">
-                  <label for="twilio_auth_token">Auth Token</label>
-                  <input type="password" id="twilio_auth_token" name="twilio_auth_token" required />
-                  <div class="help-text">Keep this secure - it's like your password</div>
+                  <label for="business_account_id">Business Account ID (WABA ID)</label>
+                  <input type="text" id="business_account_id" name="business_account_id" required placeholder="123456789012345" />
+                  <div class="help-text">Your WhatsApp Business Account ID from Meta Business Manager</div>
                 </div>
                 
                 <div class="form-group">
-                  <label for="twilio_phone">Phone Number</label>
-                  <input type="text" id="twilio_phone" name="twilio_phone" required placeholder="+1234567890" />
-                  <div class="help-text">Your Twilio phone number in E.164 format (e.g., +1234567890)</div>
+                  <label for="access_token">Access Token</label>
+                  <input type="password" id="access_token" name="access_token" required />
+                  <div class="help-text">Permanent access token - generate via System Users in Business Settings</div>
                 </div>
                 
                 <div class="form-group">
-                  <label for="clinic_phone">Clinic Reception Phone</label>
-                  <input type="text" id="clinic_phone" name="clinic_phone" placeholder="+353123456789" />
-                  <div class="help-text">Phone number patients should call to reschedule (optional)</div>
+                  <label for="template_name">Template Name</label>
+                  <input type="text" id="template_name" name="template_name" placeholder="appointment_reminder" />
+                  <div class="help-text">Name of your approved message template (default: appointment_reminder)</div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="clinic_phone">Clinic Phone Number</label>
+                  <input type="text" id="clinic_phone" name="clinic_phone" placeholder="+353871234567" />
+                  <div class="help-text">Phone number patients call to reschedule - shown in messages</div>
                 </div>
                 
                 <button type="submit" class="btn btn-primary" style="width: 100%;">
-                  💾 Save Twilio Credentials
+                  💾 Save WhatsApp Credentials
                 </button>
               </form>
             `}
           </div>
 
-          ${isGoogleAuthenticated && isTwilioAuthenticated ? `
+          ${isGoogleAuthenticated && isWhatsAppAuthenticated ? `
             <div class="section" style="background-color: #e8f5e8; border: 2px solid #c8e6c9; border-radius: 8px; padding: 1.5rem; text-align: center;">
               <h3 style="color: #34a853; margin: 0 0 0.5rem 0;">🎉 Setup Complete!</h3>
-              <p style="color: #555; margin: 0;">Both services are connected. Your clinic can now send automated SMS reminders for appointments!</p>
+              <p style="color: #555; margin: 0;">Both services are connected. Your clinic can now send automated WhatsApp reminders for appointments!</p>
             </div>
           ` : ''}
           
@@ -390,53 +139,7 @@ function renderSuccessPage(title, message, buttonText = '⚙️ Back to Setup', 
     <html>
     <head>
       <title>${title}</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-          background-color: #f5f5f5;
-          margin: 0;
-          padding: 20px;
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .container {
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-          max-width: 400px;
-          width: 100%;
-          padding: 2rem;
-          text-align: center;
-        }
-        .success-icon {
-          font-size: 3rem;
-          margin-bottom: 1rem;
-        }
-        h1 {
-          color: #34a853;
-          margin-bottom: 1rem;
-        }
-        p {
-          color: #666;
-          margin-bottom: 2rem;
-        }
-        .btn {
-          display: inline-block;
-          padding: 0.875rem 1.5rem;
-          background-color: #4285f4;
-          color: white;
-          text-decoration: none;
-          border-radius: 8px;
-          font-weight: 500;
-          transition: all 0.2s ease;
-        }
-        .btn:hover {
-          background-color: #3367d6;
-          transform: translateY(-1px);
-        }
-      </style>
+      <link rel="stylesheet" href="/styles.css">
     </head>
     <body>
       <div class="container">
@@ -462,53 +165,7 @@ function renderErrorPage(title, message) {
     <html>
     <head>
       <title>${title}</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-          background-color: #f5f5f5;
-          margin: 0;
-          padding: 20px;
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .container {
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-          max-width: 400px;
-          width: 100%;
-          padding: 2rem;
-          text-align: center;
-        }
-        .error-icon {
-          font-size: 3rem;
-          margin-bottom: 1rem;
-        }
-        h1 {
-          color: #ea4335;
-          margin-bottom: 1rem;
-        }
-        p {
-          color: #666;
-          margin-bottom: 2rem;
-        }
-        .btn {
-          display: inline-block;
-          padding: 0.875rem 1.5rem;
-          background-color: #4285f4;
-          color: white;
-          text-decoration: none;
-          border-radius: 8px;
-          font-weight: 500;
-          transition: all 0.2s ease;
-        }
-        .btn:hover {
-          background-color: #3367d6;
-          transform: translateY(-1px);
-        }
-      </style>
+      <link rel="stylesheet" href="/styles.css">
     </head>
     <body>
       <div class="container">
