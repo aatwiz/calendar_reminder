@@ -23,11 +23,20 @@ router.get('/', (req, res) => {
   const config = loadConfig();
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || config.whatsapp?.verify_token;
 
+  console.log(`\n🔐 ===== WEBHOOK VERIFICATION REQUEST =====`);
+  console.log(`Mode: ${mode}`);
+  console.log(`Challenge: ${challenge?.substring(0, 20)}...`);
+  console.log(`Token received: ${token?.substring(0, 20)}...`);
+  console.log(`Expected token: ${verifyToken?.substring(0, 20)}...`);
+  console.log(`Env var set: ${process.env.WHATSAPP_VERIFY_TOKEN ? 'YES' : 'NO'}`);
+  console.log(`Config file has token: ${config.whatsapp?.verify_token ? 'YES' : 'NO'}`);
+  console.log(`========================================\n`);
+
   if (mode === 'subscribe' && token === verifyToken) {
     console.log('✅ Webhook verified successfully');
     res.status(200).send(challenge);
   } else {
-    console.log(`❌ Webhook verification failed - Expected: ${verifyToken?.substring(0, 10)}..., Got: ${token?.substring(0, 10)}...`);
+    console.log(`❌ Webhook verification failed`);
     res.sendStatus(403);
   }
 });
@@ -39,6 +48,12 @@ router.get('/', (req, res) => {
 router.post('/', async (req, res) => {
   // Always respond quickly to Meta
   res.sendStatus(200);
+
+  console.log(`\n📨 ===== INCOMING WEBHOOK REQUEST =====`);
+  console.log(`Received POST request`);
+  console.log(`Body object: ${req.body?.object}`);
+  console.log(`Has entry: ${req.body?.entry ? 'YES' : 'NO'}`);
+  console.log(`========================================\n`);
 
   try {
     const body = req.body;
