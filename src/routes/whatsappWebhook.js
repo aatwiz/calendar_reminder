@@ -18,14 +18,16 @@ router.get('/', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
+  // Get verify token from environment variable (Railway) or config file (local)
   const { loadConfig } = require('../config');
   const config = loadConfig();
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || config.whatsapp?.verify_token;
 
-  if (mode === 'subscribe' && token === config.whatsapp?.verify_token) {
+  if (mode === 'subscribe' && token === verifyToken) {
     console.log('✅ Webhook verified successfully');
     res.status(200).send(challenge);
   } else {
-    console.log('❌ Webhook verification failed');
+    console.log(`❌ Webhook verification failed - Expected: ${verifyToken?.substring(0, 10)}..., Got: ${token?.substring(0, 10)}...`);
     res.sendStatus(403);
   }
 });
