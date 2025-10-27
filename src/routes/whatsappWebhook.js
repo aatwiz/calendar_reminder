@@ -60,6 +60,7 @@ router.post('/', async (req, res) => {
 
     // Check if this is a WhatsApp message event
     if (body.object !== 'whatsapp_business_account') {
+      console.log(`ℹ️  Ignoring webhook (object: ${body.object})`);
       return;
     }
 
@@ -68,18 +69,38 @@ router.post('/', async (req, res) => {
     const changes = entry?.changes?.[0];
     const value = changes?.value;
 
+    if (!value) {
+      console.log(`⚠️  No value in webhook`);
+      return;
+    }
+
     if (!value?.messages) {
+      console.log(`ℹ️  No messages in this webhook (statuses: ${value?.statuses ? 'YES' : 'NO'})`);
       return; // No messages in this webhook
     }
 
     const message = value.messages[0];
+    
+    if (!message || !message.from) {
+      console.log(`⚠️  Message structure invalid`);
+      return;
+    }
+
     const from = message.from; // Patient's phone number
     const messageId = message.id;
     const messageType = message.type;
 
+    console.log(`ℹ️  Message type: ${messageType}, ID: ${messageId}`);
+
     // Only handle text messages
     if (messageType !== 'text') {
       console.log(`ℹ️  Ignoring non-text message type: ${messageType}`);
+      return;
+    }
+
+    // Safely get message text
+    if (!message.text || !message.text.body) {
+      console.log(`⚠️  Message text body is missing`);
       return;
     }
 
@@ -91,7 +112,11 @@ router.post('/', async (req, res) => {
     console.log(`========================================\n`);
 
     // Mark message as read
-    await whatsapp.markAsRead(messageId);
+    try {
+      await whatsapp.markAsRead(messageId);
+    } catch (readError) {
+      console.warn(`⚠️  Could not mark message as read:`, readError.message);
+    }
 
     // Get conversation context
     const context = conversationState.getConversation(from);
