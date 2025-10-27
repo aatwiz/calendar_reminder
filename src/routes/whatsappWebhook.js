@@ -83,7 +83,12 @@ router.post('/', async (req, res) => {
 
     if (!context) {
       // No active conversation for this number
-      console.log(`⚠️  No active appointment conversation for ${from}`);
+      console.log(`\n⚠️  ===== NEW CUSTOMER / UNKNOWN NUMBER =====`);
+      console.log(`Phone: ${from}`);
+      console.log(`Message: "${messageText}"`);
+      console.log(`Timestamp: ${new Date().toISOString()}`);
+      console.log(`========================================\n`);
+      
       await whatsapp.sendTextMessage(
         from,
         'Sorry, I don\'t have any pending appointment for this number. Please call us if you need assistance.'
