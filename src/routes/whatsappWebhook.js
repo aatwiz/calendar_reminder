@@ -9,6 +9,17 @@ const { updateEventTitle } = require('../services/googleCalendar');
  * Handles incoming messages and webhook verification
  */
 
+// Log ALL requests to this webhook
+router.use((req, res, next) => {
+  console.log(`\n🌐 ===== WEBHOOK REQUEST RECEIVED =====`);
+  console.log(`Method: ${req.method}`);
+  console.log(`URL: ${req.originalUrl}`);
+  console.log(`Timestamp: ${new Date().toISOString()}`);
+  console.log(`Content-Type: ${req.get('content-type')}`);
+  console.log(`========================================\n`);
+  next();
+});
+
 /**
  * GET /webhook/whatsapp - Webhook verification
  * Meta sends this to verify your webhook URL
@@ -46,6 +57,10 @@ router.get('/', (req, res) => {
  * Meta sends this when users send messages
  */
 router.post('/', async (req, res) => {
+  console.log(`\n📨 ===== WEBHOOK POST RECEIVED =====`);
+  console.log(`Timestamp: ${new Date().toISOString()}`);
+  console.log(`Raw body keys: ${Object.keys(req.body || {}).join(', ')}`);
+  
   // Always respond quickly to Meta
   res.sendStatus(200);
 
