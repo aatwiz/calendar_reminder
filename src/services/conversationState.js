@@ -44,12 +44,24 @@ function saveState() {
 /**
  * Normalize phone number for consistent lookup
  * Removes +, spaces, dashes, parentheses
+ * Handles country code variations (e.g., +31 vs 31)
  * @param {string} phoneNumber - Raw phone number
  * @returns {string} Normalized phone number
  */
 function normalizePhoneNumber(phoneNumber) {
   if (!phoneNumber) return '';
-  return phoneNumber.replace(/[\s\-\(\)\+]/g, '');
+  
+  // Remove all non-digit characters
+  let normalized = phoneNumber.replace(/\D/g, '');
+  
+  // Handle leading zeros that should be removed for international format
+  // E.g., "310647593444" should match "+310647593444" or "31647593444"
+  // Remove leading 0 if followed by country code pattern
+  if (normalized.startsWith('0')) {
+    normalized = normalized.substring(1);
+  }
+  
+  return normalized;
 }
 
 /**
