@@ -177,22 +177,31 @@ router.post('/', async (req, res) => {
 
 /**
  * Parse user intent from message text
- * @param {string} text - Message text (lowercase)
+ * Handles both button clicks and typed messages
+ * @param {string} text - Message text (will be converted to lowercase)
  * @returns {string|null} 'confirm', 'cancel', 'reschedule', or null
  */
 function parseIntent(text) {
+  const lowerText = text.toLowerCase();
+  
+  // Handle button clicks (exact matches first)
+  if (lowerText === 'confirm') return 'confirm';
+  if (lowerText === 'cancel') return 'cancel';
+  if (lowerText === 'reschedule') return 'reschedule';
+  
+  // Handle typed responses (fuzzy matching)
   // Confirm keywords
-  if (/\b(confirm|yes|ok|okay|sure|yep|yeah|correct)\b/.test(text)) {
+  if (/\b(confirm|yes|ok|okay|sure|yep|yeah|correct)\b/.test(lowerText)) {
     return 'confirm';
   }
 
   // Cancel keywords
-  if (/\b(cancel|no|nope|not coming|can't make it)\b/.test(text)) {
+  if (/\b(cancel|no|nope|not coming|can't make it)\b/.test(lowerText)) {
     return 'cancel';
   }
 
   // Reschedule keywords
-  if (/\b(reschedule|change|move|different time|another time)\b/.test(text)) {
+  if (/\b(reschedule|change|move|different time|another time)\b/.test(lowerText)) {
     return 'reschedule';
   }
 
