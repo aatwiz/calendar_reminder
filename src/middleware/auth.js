@@ -14,7 +14,7 @@ function getSessionConfig() {
   // In production on Railway, trust the proxy (HTTPS is handled by Railway's reverse proxy)
   // In development, use non-secure cookies
   const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
-  const isVercel = process.env.VERCEL === 'true';
+  const isVercel = !!process.env.VERCEL; // True if VERCEL env var exists (any value)
   
   console.log(`\n🔐 ===== SESSION CONFIG =====`);
   console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
