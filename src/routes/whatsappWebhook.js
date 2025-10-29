@@ -243,9 +243,9 @@ async function handleAppointmentAction(phoneNumber, context, intent) {
       break;
 
     case 'reschedule':
-      emoji = '❓';
+      emoji = '🔄';
       action = 'marked for rescheduling';
-      replyMessage = `🔄 We'll help you reschedule.\n\nPlease call us at ${config.clinic_phone || 'the clinic'} to arrange a new time.\n\nThank you!`;
+      replyMessage = `🔄 Our receptionist will call you shortly regarding rescheduling, thank you!`;
       break;
   }
 

@@ -64,6 +64,14 @@ async function sendTemplateMessage(to, templateName, parameters = []) {
     return response.data;
   } catch (error) {
     console.error('❌ WhatsApp send failed:', error.response?.data || error.message);
+    console.error('📋 Full error details:', JSON.stringify({
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      url: url,
+      phoneNumberId: config.phone_number_id,
+      to: to
+    }, null, 2));
     throw new Error(`Failed to send WhatsApp message: ${error.response?.data?.error?.message || error.message}`);
   }
 }
@@ -106,6 +114,13 @@ async function sendTextMessage(to, message) {
     return response.data;
   } catch (error) {
     console.error('❌ WhatsApp reply failed:', error.response?.data || error.message);
+    console.error('📋 Full error details:', JSON.stringify({
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      url: url,
+      phoneNumberId: config.phone_number_id
+    }, null, 2));
     throw new Error(`Failed to send WhatsApp reply: ${error.response?.data?.error?.message || error.message}`);
   }
 }
