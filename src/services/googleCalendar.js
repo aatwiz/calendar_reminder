@@ -190,6 +190,7 @@ async function markEventAsReminded(eventId, currentTitle) {
  * @returns {Promise<Object>} Updated event
  */
 async function updateEventTitle(eventId, emoji) {
+  console.log(`[updateEventTitle] START - eventId: ${eventId}, emoji: ${emoji}`);
   const config = loadConfig();
   if (!config.google || !config.google.tokens) {
     throw new Error('Google not authenticated');
@@ -200,37 +201,47 @@ async function updateEventTitle(eventId, emoji) {
 
   const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
   
-  // Get current event
-  const event = await calendar.events.get({
-    calendarId: 'primary',
-    eventId
-  });
+  try {
+    // Get current event
+    console.log(`[updateEventTitle] Fetching event ${eventId}...`);
+    const event = await calendar.events.get({
+      calendarId: 'primary',
+      eventId
+    });
+    console.log(`[updateEventTitle] Event fetched`);
 
-  let currentTitle = event.data.summary;
-  
-  // Remove any existing status emoji from the beginning
-  // Match: emoji followed by space(s) at start of string
-  currentTitle = currentTitle.replace(/^\S+\s+/, '').trim();
-  
-  // If it still starts with an emoji pattern, clean it more aggressively
-  if (/^\W/.test(currentTitle.charAt(0))) {
-    currentTitle = currentTitle.replace(/^\W+\s*/, '').trim();
+    let currentTitle = event.data.summary;
+    
+    // Remove any existing status emoji from the beginning
+    // Match: emoji followed by space(s) at start of string
+    currentTitle = currentTitle.replace(/^\S+\s+/, '').trim();
+    
+    // If it still starts with an emoji pattern, clean it more aggressively
+    if (/^\W/.test(currentTitle.charAt(0))) {
+      currentTitle = currentTitle.replace(/^\W+\s*/, '').trim();
+    }
+    
+    // Add new emoji
+    const newTitle = `${emoji} ${currentTitle}`;
+    
+    console.log(`📝 Updating title: "${currentTitle}" → "${newTitle}"`);
+    console.log(`[updateEventTitle] Patching event...`);
+    
+    const updatedEvent = await calendar.events.patch({
+      calendarId: 'primary',
+      eventId,
+      requestBody: {
+        summary: newTitle,
+      },
+    });
+
+    console.log(`[updateEventTitle] SUCCESS - Event updated`);
+    return updatedEvent.data;
+  } catch (error) {
+    console.error(`[updateEventTitle] ERROR:`, error.message);
+    console.error(`[updateEventTitle] Stack:`, error.stack);
+    throw error;
   }
-  
-  // Add new emoji
-  const newTitle = `${emoji} ${currentTitle}`;
-  
-  console.log(`📝 Updating title: "${currentTitle}" → "${newTitle}"`);
-  
-  const updatedEvent = await calendar.events.patch({
-    calendarId: 'primary',
-    eventId,
-    requestBody: {
-      summary: newTitle,
-    },
-  });
-
-  return updatedEvent.data;
 }
 
 /**

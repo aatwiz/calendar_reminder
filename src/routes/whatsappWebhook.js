@@ -200,7 +200,9 @@ router.post('/', async (req, res) => {
     console.log(`About to handle appointment action with intent: ${intent}`);
 
     // Handle the intent
+    console.log(`[WEBHOOK] Calling handleAppointmentAction()...`);
     await handleAppointmentAction(from, context, intent);
+    console.log(`[WEBHOOK] handleAppointmentAction() completed`);
     
     console.log(`Appointment action completed successfully`);
 
@@ -299,8 +301,11 @@ async function handleAppointmentAction(phoneNumber, context, intent) {
     console.log(`✅ Appointment ${action} for ${patientName} (${phoneNumber})`);
 
   } catch (error) {
-    console.error(`❌ Error handling ${intent}:`, error);
+    console.error(`❌ Error handling ${intent}:`, error.message);
     console.error(`Error stack:`, error.stack);
+    if (error.response) {
+      console.error(`API Error:`, error.response.status, error.response.data);
+    }
     try {
       await whatsapp.sendTextMessage(
         phoneNumber,
