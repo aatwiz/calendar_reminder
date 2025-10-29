@@ -42,19 +42,32 @@ function saveState() {
 }
 
 /**
+ * Normalize phone number for consistent lookup
+ * Removes +, spaces, dashes, parentheses
+ * @param {string} phoneNumber - Raw phone number
+ * @returns {string} Normalized phone number
+ */
+function normalizePhoneNumber(phoneNumber) {
+  if (!phoneNumber) return '';
+  return phoneNumber.replace(/[\s\-\(\)\+]/g, '');
+}
+
+/**
  * Store conversation context when sending a reminder
  * @param {string} phoneNumber - Patient's phone number (E.164 format)
  * @param {Object} context - Appointment context
  */
 function setConversation(phoneNumber, context) {
-  stateCache[phoneNumber] = {
+  const normalized = normalizePhoneNumber(phoneNumber);
+  stateCache[normalized] = {
     eventId: context.eventId,
     patientName: context.patientName,
     appointmentTime: context.appointmentTime,
-    lastReminderSent: new Date().toISOString()
+    lastReminderSent: new Date().toISOString(),
+    originalPhone: phoneNumber
   };
   saveState();
-  console.log(`💾 Stored conversation for ${phoneNumber}`);
+  console.log(`💾 Stored conversation for ${phoneNumber} (normalized: ${normalized})`);
 }
 
 /**
@@ -63,7 +76,15 @@ function setConversation(phoneNumber, context) {
  * @returns {Object|null} Conversation context or null if not found
  */
 function getConversation(phoneNumber) {
-  return stateCache[phoneNumber] || null;
+  const normalized = normalizePhoneNumber(phoneNumber);
+  const result = stateCache[normalized];
+  if (!result) {
+    console.log(`❌ No conversation found for ${phoneNumber} (normalized: ${normalized})`);
+    console.log(`📋 Available conversations:`, Object.keys(stateCache));
+  } else {
+    console.log(`✅ Found conversation for ${phoneNumber} (normalized: ${normalized})`);
+  }
+  return result || null;
 }
 
 /**
@@ -71,10 +92,11 @@ function getConversation(phoneNumber) {
  * @param {string} phoneNumber - Patient's phone number
  */
 function clearConversation(phoneNumber) {
-  if (stateCache[phoneNumber]) {
-    delete stateCache[phoneNumber];
+  const normalized = normalizePhoneNumber(phoneNumber);
+  if (stateCache[normalized]) {
+    delete stateCache[normalized];
     saveState();
-    console.log(`🗑️  Cleared conversation for ${phoneNumber}`);
+    console.log(`🗑️  Cleared conversation for ${phoneNumber} (normalized: ${normalized})`);
   }
 }
 
