@@ -1,4 +1,6 @@
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
+const path = require('path');
 
 /**
  * Authentication Middleware
@@ -9,14 +11,23 @@ const session = require('express-session');
  * Session configuration
  */
 function getSessionConfig() {
+  const sessionDir = path.join(__dirname, '../../sessions');
+  
   return session({
+    store: new FileStore({
+      path: sessionDir,
+      ttl: 24 * 60 * 60 // 24 hours in seconds
+    }),
     secret: process.env.SESSION_SECRET || 'calendar-reminder-session-secret-change-in-production',
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false, // Don't save empty sessions
+    name: 'calendarReminderId', // Custom cookie name
     cookie: {
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      path: '/',
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours in milliseconds
     }
   });
 }
@@ -186,17 +197,20 @@ function getLoginPageHTML() {
 function isAuthenticated(req, res, next) {
   console.log(`\n🔐 Auth check for ${req.method} ${req.path}`);
   console.log(`   Session ID: ${req.sessionID}`);
-  console.log(`   Authenticated: ${req.session?.authenticated || false}`);
-  console.log(`   Session data keys: ${Object.keys(req.session || {}).join(', ')}`);
+  console.log(`   Cookie: ${req.get('cookie')?.substring(0, 50)}...`);
   
-  // Check authentication
-  if (req.session && req.session.authenticated) {
-    console.log(`   ✅ Authenticated - allowing`);
+  // Check if session exists and user is authenticated
+  const isAuth = req.session && req.session.authenticated === true;
+  console.log(`   Session exists: ${!!req.session}`);
+  console.log(`   Authenticated: ${isAuth}`);
+  
+  if (isAuth) {
+    console.log(`   ✅ AUTHENTICATED - allowing request`);
     return next();
   }
   
   // Not authenticated - redirect to login
-  console.log(`   ❌ Not authenticated - redirecting to /login`);
+  console.log(`   ❌ NOT AUTHENTICATED - redirecting to /login`);
   res.redirect('/login');
 }
 
@@ -209,24 +223,36 @@ function handleLogin(req, res) {
   const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'riverpointeyeclinic2000';
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '@hmed2008';
   
+  console.log(`\n🔐 ===== LOGIN ATTEMPT =====`);
+  console.log(`Username: ${username}`);
+  console.log(`Session ID before: ${req.sessionID}`);
+  
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     req.session.authenticated = true;
     req.session.loginTime = new Date().toISOString();
-    console.log(`✅ User authenticated at ${req.session.loginTime}`);
-    console.log(`✅ Session ID: ${req.sessionID}`);
-    console.log(`✅ Session data:`, req.session);
+    req.session.username = username;
     
-    // Save session before redirecting
+    console.log(`✅ Credentials valid`);
+    console.log(`✅ Session ID: ${req.sessionID}`);
+    console.log(`✅ Session authenticated: ${req.session.authenticated}`);
+    
+    // Save session and then redirect
     req.session.save((err) => {
       if (err) {
         console.error('❌ Error saving session:', err);
-        return res.status(500).send('Error saving session');
+        return res.status(500).send('Error: Could not save session');
       }
-      console.log(`✅ Session saved, redirecting to /setup`);
+      
+      console.log(`✅ Session saved successfully`);
+      console.log(`✅ Setting cookie and redirecting...`);
+      
+      // Make sure the Set-Cookie header is sent
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.redirect('/setup');
     });
   } else {
-    console.log(`❌ Failed login attempt with username: ${username}`);
+    console.log(`❌ Invalid credentials`);
+    console.log(`===== END LOGIN ATTEMPT =====\n`);
     res.status(401).send(getLoginPageHTML());
   }
 }
