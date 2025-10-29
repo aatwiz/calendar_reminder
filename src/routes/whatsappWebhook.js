@@ -93,6 +93,14 @@ router.post('/', async (req, res) => {
       return;
     }
 
+    // Debug: Show what's in the value object
+    const valueKeys = Object.keys(value || {});
+    console.log(`📊 Webhook value contains: ${valueKeys.join(', ')}`);
+    
+    if (value?.statuses) {
+      console.log(`📈 Status update: ${JSON.stringify(value.statuses[0])}`);
+    }
+
     if (!value?.messages) {
       console.log(`ℹ️  No messages in this webhook (statuses: ${value?.statuses ? 'YES' : 'NO'})`);
       return; // No messages in this webhook
