@@ -155,7 +155,15 @@ router.post('/', async (req, res) => {
 
     // Get conversation context
     console.log(`\n🔍 Attempting to find conversation for phone: ${from}`);
-    const context = conversationState.getConversation(from);
+    let context;
+    try {
+      context = conversationState.getConversation(from);
+      console.log(`✅ getConversation() completed`);
+    } catch (convError) {
+      console.error(`❌ Error calling getConversation():`, convError.message);
+      console.error(`Stack:`, convError.stack);
+      throw convError;
+    }
 
     if (!context) {
       // No active conversation for this number
@@ -197,10 +205,16 @@ router.post('/', async (req, res) => {
     console.log(`Appointment action completed successfully`);
 
   } catch (error) {
-    console.error('❌ Error processing WhatsApp webhook:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    console.error('❌ ERROR PROCESSING WEBHOOK - Details below:');
+    console.error('Error type:', error?.constructor?.name || 'Unknown');
+    console.error('Error message:', error?.message || 'No message');
+    console.error('Error stack:', error?.stack || 'No stack');
+    if (error?.response) {
+      console.error('HTTP Status:', error.response.status);
+      console.error('HTTP Data:', JSON.stringify(error.response.data));
+    }
+    // Log the entire error object
+    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
   }
 });
 
