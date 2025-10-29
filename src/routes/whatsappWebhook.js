@@ -154,6 +154,7 @@ router.post('/', async (req, res) => {
     }
 
     // Get conversation context
+    console.log(`\n🔍 Attempting to find conversation for phone: ${from}`);
     const context = conversationState.getConversation(from);
 
     if (!context) {
@@ -162,6 +163,8 @@ router.post('/', async (req, res) => {
       console.log(`Phone: ${from}`);
       console.log(`Message: "${messageText}"`);
       console.log(`Timestamp: ${new Date().toISOString()}`);
+      console.log(`❓ This phone number doesn't have an active appointment reminder.`);
+      console.log(`❓ Reminders must be sent first via /send-reminders for webhook to work.`);
       console.log(`========================================\n`);
       
       // Only send greeting to truly new customers, not to users who already responded
