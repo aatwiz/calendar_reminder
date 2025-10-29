@@ -148,14 +148,8 @@ router.post('/', async (req, res) => {
       console.log(`Timestamp: ${new Date().toISOString()}`);
       console.log(`========================================\n`);
       
-      const { loadConfig } = require('../config');
-      const config = loadConfig();
-      const clinicPhone = config.clinic_phone || 'the clinic';
-      
-      await whatsapp.sendTextMessage(
-        from,
-        `Hello! 👋\n\nThank you for contacting us. For appointment-related inquiries, please call us at ${clinicPhone}.\n\nOur team will be happy to assist you!`
-      );
+      // Only send greeting to truly new customers, not to users who already responded
+      // The receptionist will see this logged and can handle it manually if needed
       return;
     }
 
