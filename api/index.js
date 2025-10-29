@@ -1,6 +1,7 @@
 // Vercel serverless handler - exports the Express app without listening
 const express = require('express');
 const bodyParser = require('body-parser');
+const path = require('path');
 const cron = require('node-cron');
 
 require('dotenv').config();
@@ -12,7 +13,10 @@ app.set('trust proxy', 1);
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.use(express.static('public'));
+
+// Serve static files from public folder (relative to project root)
+const publicPath = path.join(__dirname, '../public');
+app.use(express.static(publicPath));
 
 // Initialize session and authentication
 const { getSessionConfig, isAuthenticated, handleLogin, handleLogout, getLoginPage } = require('../src/middleware/auth');
