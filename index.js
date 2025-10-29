@@ -208,7 +208,7 @@ async function sendAutomatedReminders() {
   }
 }
 
-app.get('/', (req, res) => {
+app.get('/', isAuthenticated, (req, res) => {
   const config = loadConfig();
   const googleAuth = isGoogleAuthenticated();
   const whatsappConfig = whatsapp.isConfigured();
@@ -397,7 +397,7 @@ app.use('/', setupRoutes);
 app.use('/', authRoutes);
 
 // Optional alias: /status -> /
-app.get('/status', (req, res) => {
+app.get('/status', isAuthenticated, (req, res) => {
   res.redirect('/');
 });
 
