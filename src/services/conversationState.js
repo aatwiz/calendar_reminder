@@ -43,8 +43,8 @@ function saveState() {
 
 /**
  * Normalize phone number for consistent lookup
- * Removes +, spaces, dashes, parentheses
- * Handles country code variations (e.g., +31 vs 31)
+ * Handles E.164 format and country-specific quirks
+ * Special handling for +31 (Netherlands) and +32 (Belgium) where area code 0 is dropped
  * @param {string} phoneNumber - Raw phone number
  * @returns {string} Normalized phone number
  */
@@ -54,12 +54,26 @@ function normalizePhoneNumber(phoneNumber) {
   // Remove all non-digit characters
   let normalized = phoneNumber.replace(/\D/g, '');
   
-  // Handle leading zeros that should be removed for international format
-  // E.g., "310647593444" should match "+310647593444" or "31647593444"
-  // Remove leading 0 if followed by country code pattern
-  if (normalized.startsWith('0')) {
+  // Handle Netherlands (+31) and Belgium (+32) special case:
+  // +310XXXXXXX becomes 310XXXXXXX but WhatsApp returns 31XXXXXXX
+  // So we need to normalize +310 → 31 by removing the 0
+  if (normalized.startsWith('310')) {
+    // Remove the 0 after country code 31
+    normalized = '31' + normalized.substring(3);
+    console.log(`📞 Netherlands number normalized: +310... → 31...`);
+  } else if (normalized.startsWith('320')) {
+    // Remove the 0 after country code 32
+    normalized = '32' + normalized.substring(3);
+    console.log(`📞 Belgium number normalized: +320... → 32...`);
+  }
+  
+  // Remove other leading zeros that might be at the very start
+  // (for numbers that don't start with country code)
+  while (normalized.startsWith('0') && normalized.length > 1) {
     normalized = normalized.substring(1);
   }
+  
+  console.log(`📞 Phone normalization: "${phoneNumber}" → "${normalized}"`);
   
   return normalized;
 }
