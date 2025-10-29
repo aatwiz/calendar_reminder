@@ -200,11 +200,19 @@ async function updateEventTitle(eventId, emoji) {
 
   let currentTitle = event.data.summary;
   
-  // Remove any existing status emoji (🔔, ✅, ❌, ❓) from the beginning
-  currentTitle = currentTitle.replace(/^[🔔✅❌❓]\s*/, '').trim();
+  // Remove any existing status emoji from the beginning
+  // Match: emoji followed by space(s) at start of string
+  currentTitle = currentTitle.replace(/^\S+\s+/, '').trim();
+  
+  // If it still starts with an emoji pattern, clean it more aggressively
+  if (/^\W/.test(currentTitle.charAt(0))) {
+    currentTitle = currentTitle.replace(/^\W+\s*/, '').trim();
+  }
   
   // Add new emoji
   const newTitle = `${emoji} ${currentTitle}`;
+  
+  console.log(`📝 Updating title: "${currentTitle}" → "${newTitle}"`);
   
   const updatedEvent = await calendar.events.patch({
     calendarId: 'primary',
