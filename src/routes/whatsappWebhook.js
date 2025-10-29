@@ -249,26 +249,37 @@ async function handleAppointmentAction(phoneNumber, context, intent) {
     // Update Google Calendar event title
     console.log(`📅 Updating calendar event ${eventId} with ${emoji} emoji`);
     await updateEventTitle(eventId, emoji);
+    console.log(`✅ Calendar event updated successfully`);
 
     // Send confirmation message to patient
-    await whatsapp.sendTextMessage(phoneNumber, replyMessage);
+    console.log(`📱 Sending reply to patient: ${phoneNumber}`);
+    const sendResult = await whatsapp.sendTextMessage(phoneNumber, replyMessage);
+    console.log(`✅ Message sent to patient: ${JSON.stringify(sendResult)}`);
 
     // If reschedule, send notification to clinic
     if (intent === 'reschedule') {
+      console.log(`📞 Sending reschedule notification to clinic...`);
       await sendRescheduleNotificationToClinic(patientName, phoneNumber, appointmentTime, config);
+      console.log(`✅ Reschedule notification sent to clinic`);
     }
 
     // Clear conversation state
     conversationState.clearConversation(phoneNumber);
+    console.log(`🗑️  Conversation state cleared for ${phoneNumber}`);
 
     console.log(`✅ Appointment ${action} for ${patientName} (${phoneNumber})`);
 
   } catch (error) {
     console.error(`❌ Error handling ${intent}:`, error);
-    await whatsapp.sendTextMessage(
-      phoneNumber,
-      'Sorry, there was an error processing your request. Please call us directly.'
-    );
+    console.error(`Error stack:`, error.stack);
+    try {
+      await whatsapp.sendTextMessage(
+        phoneNumber,
+        'Sorry, there was an error processing your request. Please call us directly.'
+      );
+    } catch (sendError) {
+      console.error(`❌ Could not send error message:`, sendError.message);
+    }
   }
 }
 
@@ -286,10 +297,14 @@ async function sendRescheduleNotificationToClinic(patientName, patientPhone, app
   const message = `📌 RESCHEDULE REQUEST:\n\nPatient: ${patientName}\nPhone: ${patientPhone}\nOriginal Appointment: ${formattedDate}`;
 
   try {
-    await whatsapp.sendTextMessage(clinicNotificationPhone, message);
+    console.log(`Attempting to send notification to clinic at ${clinicNotificationPhone}`);
+    console.log(`Message: ${message}`);
+    const result = await whatsapp.sendTextMessage(clinicNotificationPhone, message);
     console.log(`📱 Reschedule notification sent to clinic (${clinicNotificationPhone})`);
+    console.log(`Clinic notification result:`, JSON.stringify(result));
   } catch (error) {
     console.error(`❌ Failed to send reschedule notification to clinic:`, error.message);
+    console.error(`Error details:`, error);
   }
 }
 
