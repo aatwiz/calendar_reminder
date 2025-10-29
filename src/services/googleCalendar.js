@@ -25,6 +25,8 @@ function getAuthUrl() {
   const oAuth2Client = getOAuthClient();
   return oAuth2Client.generateAuthUrl({
     access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: true,
     scope: [
       'https://www.googleapis.com/auth/calendar.events',
       'https://www.googleapis.com/auth/calendar'
@@ -47,7 +49,13 @@ async function handleOAuthCallback(code) {
   if (!config.google) {
     config.google = {};
   }
-  
+
+  // Preserve existing refresh token if Google doesn't return a new one
+  const existingRefreshToken = config.google.tokens?.refresh_token;
+  if (!tokens.refresh_token && existingRefreshToken) {
+    tokens.refresh_token = existingRefreshToken;
+  }
+
   config.google.tokens = tokens;
   saveConfig(config);
 
