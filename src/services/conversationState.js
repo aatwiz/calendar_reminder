@@ -16,8 +16,14 @@ let stateCache = {};
  * Load conversation state from file
  */
 function loadState() {
+  const isVercel = !!process.env.VERCEL;
+  
   try {
-    if (fs.existsSync(STATE_FILE)) {
+    if (isVercel) {
+      // On Vercel, start fresh with empty state (read-only filesystem)
+      stateCache = {};
+      console.log('📖 Using in-memory conversation state (Vercel serverless)');
+    } else if (fs.existsSync(STATE_FILE)) {
       const data = fs.readFileSync(STATE_FILE, 'utf8');
       stateCache = JSON.parse(data);
       console.log(`📖 Loaded conversation state: ${Object.keys(stateCache).length} active conversations`);
@@ -25,7 +31,7 @@ function loadState() {
       stateCache = {};
     }
   } catch (error) {
-    console.error('❌ Error loading conversation state:', error.message);
+    console.error('Error loading conversation state:', error.message);
     stateCache = {};
   }
 }
@@ -34,10 +40,18 @@ function loadState() {
  * Save conversation state to file
  */
 function saveState() {
+  const isVercel = !!process.env.VERCEL;
+  
   try {
-    fs.writeFileSync(STATE_FILE, JSON.stringify(stateCache, null, 2));
+    if (isVercel) {
+      // Vercel: save to memory only (read-only filesystem)
+      console.log('💾 Conversation state saved to memory (Vercel serverless)');
+    } else {
+      // Local/Railway: save to file
+      fs.writeFileSync(STATE_FILE, JSON.stringify(stateCache, null, 2));
+    }
   } catch (error) {
-    console.error('❌ Error saving conversation state:', error.message);
+    console.error('Error saving conversation state:', error.message);
   }
 }
 
@@ -109,7 +123,7 @@ function setConversation(phoneNumber, context) {
     originalPhone: phoneNumber
   };
   saveState();
-  console.log(`💾 Stored conversation for ${phoneNumber} (normalized: ${normalized})`);
+  console.log(`Stored conversation for ${phoneNumber} (normalized: ${normalized})`);
 }
 
 /**
