@@ -129,11 +129,15 @@ async function processWhatsAppReminder(event, verbose = false) {
     
     console.log(`${logPrefix}✅ WhatsApp sent! Message ID: ${result.messages[0].id}`);
     
+    // Store conversation - the setConversation function will normalize the phone number
+    // This ensures the webhook can find it when the patient replies
+    console.log(`${logPrefix}💾 Storing conversation for webhook matching...`);
     conversationState.setConversation(fullPhoneNumber, {
       eventId: event.id,
       patientName: patientName,
       appointmentTime: eventStart
     });
+    console.log(`${logPrefix}✅ Conversation stored`);
     
     await markEventAsReminded(event.id, title);
     console.log(`${logPrefix}Calendar event marked as reminded`);

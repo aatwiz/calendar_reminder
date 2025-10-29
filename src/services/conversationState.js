@@ -69,6 +69,8 @@ function normalizePhoneNumber(phoneNumber) {
   // Remove all non-digit characters
   let normalized = phoneNumber.replace(/\D/g, '');
   
+  console.log(`📞 Phone normalization starting: "${phoneNumber}" → digits only: "${normalized}"`);
+  
   // Handle countries with area code 0 that gets dropped in international format
   // Pattern: +XXX0 (country code + leading 0) should become XXX (just country code)
   // This applies to most European countries
@@ -93,6 +95,7 @@ function normalizePhoneNumber(phoneNumber) {
   for (const { code, normalized: replacement } of countryCodesToHandle) {
     if (normalized.startsWith(code)) {
       normalized = replacement + normalized.substring(code.length);
+      console.log(`📞 Matched country code: ${code} → ${replacement}`);
       break;
     }
   }
@@ -101,6 +104,7 @@ function normalizePhoneNumber(phoneNumber) {
   // (for numbers that don't start with country code)
   while (normalized.startsWith('0') && normalized.length > 1) {
     normalized = normalized.substring(1);
+    console.log(`📞 Removed leading 0 → "${normalized}"`);
   }
   
   console.log(`📞 Phone normalization: "${phoneNumber}" → "${normalized}"`);
