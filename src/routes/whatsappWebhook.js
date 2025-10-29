@@ -111,19 +111,27 @@ router.post('/', async (req, res) => {
 
     console.log(`ℹ️  Message type: ${messageType}, ID: ${messageId}`);
 
-    // Only handle text messages
-    if (messageType !== 'text') {
-      console.log(`ℹ️  Ignoring non-text message type: ${messageType}`);
+    // Handle text messages and button responses
+    let messageText = '';
+    
+    if (messageType === 'text') {
+      if (!message.text || !message.text.body) {
+        console.log(`⚠️  Message text body is missing`);
+        return;
+      }
+      messageText = message.text.body.trim().toLowerCase();
+    } else if (messageType === 'button') {
+      // When user clicks a button, WhatsApp sends it as button type with payload
+      if (!message.button || !message.button.text) {
+        console.log(`⚠️  Button text is missing`);
+        return;
+      }
+      messageText = message.button.text.trim().toLowerCase();
+      console.log(`📌 Button clicked: ${messageText}`);
+    } else {
+      console.log(`ℹ️  Ignoring non-text/button message type: ${messageType}`);
       return;
     }
-
-    // Safely get message text
-    if (!message.text || !message.text.body) {
-      console.log(`⚠️  Message text body is missing`);
-      return;
-    }
-
-    const messageText = message.text.body.trim().toLowerCase();
 
     console.log(`\n📱 ===== INCOMING WHATSAPP MESSAGE =====`);
     console.log(`From: ${from}`);
