@@ -38,7 +38,8 @@ function getSessionConfig() {
       path: '/',
       httpOnly: true,
       secure: isProduction, // Only HTTPS in production
-      sameSite: isProduction ? 'strict' : 'lax',
+      // Use 'lax' so OAuth GET redirects (third-party navigations) include the cookie
+      sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours in milliseconds
     }
   });

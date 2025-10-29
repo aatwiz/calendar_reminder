@@ -208,7 +208,7 @@ async function sendAutomatedReminders() {
   }
 }
 
-app.get('/', (req, res) => {
+app.get('/status', (req, res) => {
   const config = loadConfig();
   const googleAuth = isGoogleAuthenticated();
   const whatsappConfig = whatsapp.isConfigured();
