@@ -168,7 +168,7 @@ router.post('/', async (req, res) => {
       // Didn't understand the message
       await whatsapp.sendTextMessage(
         from,
-        `I didn't understand that. Please reply with:\n✅ CONFIRM to confirm\n❌ CANCEL to cancel\n🔄 RESCHEDULE to reschedule`
+        `I didn't understand that. Please reply with:\n✅ CONFIRM to confirm\n🔄 RESCHEDULE to reschedule`
       );
       return;
     }
@@ -185,14 +185,13 @@ router.post('/', async (req, res) => {
  * Parse user intent from message text
  * Handles both button clicks and typed messages
  * @param {string} text - Message text (will be converted to lowercase)
- * @returns {string|null} 'confirm', 'cancel', 'reschedule', or null
+ * @returns {string|null} 'confirm' or 'reschedule', or null
  */
 function parseIntent(text) {
   const lowerText = text.toLowerCase();
   
   // Handle button clicks (exact matches first)
   if (lowerText === 'confirm') return 'confirm';
-  if (lowerText === 'cancel') return 'cancel';
   if (lowerText === 'reschedule') return 'reschedule';
   
   // Handle typed responses (fuzzy matching)
@@ -201,13 +200,8 @@ function parseIntent(text) {
     return 'confirm';
   }
 
-  // Cancel keywords
-  if (/\b(cancel|no|nope|not coming|can't make it)\b/.test(lowerText)) {
-    return 'cancel';
-  }
-
   // Reschedule keywords
-  if (/\b(reschedule|change|move|different time|another time)\b/.test(lowerText)) {
+  if (/\b(reschedule|change|move|different time|another time|no|cancel|nope|not coming|can't make it)\b/.test(lowerText)) {
     return 'reschedule';
   }
 
@@ -218,7 +212,7 @@ function parseIntent(text) {
  * Handle appointment action based on user intent
  * @param {string} phoneNumber - Patient's phone number
  * @param {Object} context - Conversation context
- * @param {string} intent - User intent ('confirm', 'cancel', 'reschedule')
+ * @param {string} intent - User intent ('confirm' or 'reschedule')
  */
 async function handleAppointmentAction(phoneNumber, context, intent) {
   const { eventId, patientName, appointmentTime } = context;
@@ -236,12 +230,6 @@ async function handleAppointmentAction(phoneNumber, context, intent) {
       replyMessage = `✅ Your appointment is confirmed!\n\nSee you on ${formatDateTime(appointmentTime)}.\n\nThank you!`;
       break;
 
-    case 'cancel':
-      emoji = '❌';
-      action = 'cancelled';
-      replyMessage = `❌ Your appointment has been cancelled.\n\nIf you need to book again, please call us at ${config.clinic_phone || 'the clinic'}.`;
-      break;
-
     case 'reschedule':
       emoji = '🔄';
       action = 'marked for rescheduling';
@@ -257,6 +245,11 @@ async function handleAppointmentAction(phoneNumber, context, intent) {
     // Send confirmation message to patient
     await whatsapp.sendTextMessage(phoneNumber, replyMessage);
 
+    // If reschedule, send notification to clinic
+    if (intent === 'reschedule') {
+      await sendRescheduleNotificationToClinic(patientName, phoneNumber, appointmentTime, config);
+    }
+
     // Clear conversation state
     conversationState.clearConversation(phoneNumber);
 
@@ -268,6 +261,27 @@ async function handleAppointmentAction(phoneNumber, context, intent) {
       phoneNumber,
       'Sorry, there was an error processing your request. Please call us directly.'
     );
+  }
+}
+
+/**
+ * Send reschedule notification to clinic
+ * @param {string} patientName - Patient name
+ * @param {string} patientPhone - Patient phone number
+ * @param {string} appointmentTime - Original appointment time (ISO string)
+ * @param {Object} config - App configuration
+ */
+async function sendRescheduleNotificationToClinic(patientName, patientPhone, appointmentTime, config) {
+  const clinicNotificationPhone = '+353871240142';
+  const formattedDate = formatDateTime(appointmentTime);
+  
+  const message = `📌 RESCHEDULE REQUEST:\n\nPatient: ${patientName}\nPhone: ${patientPhone}\nOriginal Appointment: ${formattedDate}`;
+
+  try {
+    await whatsapp.sendTextMessage(clinicNotificationPhone, message);
+    console.log(`📱 Reschedule notification sent to clinic (${clinicNotificationPhone})`);
+  } catch (error) {
+    console.error(`❌ Failed to send reschedule notification to clinic:`, error.message);
   }
 }
 

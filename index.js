@@ -242,7 +242,7 @@ app.get('/', isAuthenticated, (req, res) => {
           <ol style="text-align: left; margin: 20px auto; max-width: 500px;">
             <li>Create calendar events with format: <code>Patient Name #PhoneNumber</code></li>
             <li>System sends WhatsApp reminders 24-48h before appointment</li>
-            <li>Patients reply with: CONFIRM, CANCEL, or RESCHEDULE</li>
+            <li>Patients reply with: CONFIRM or RESCHEDULE</li>
             <li>Calendar automatically updates with emoji status</li>
           </ol>
         </div>
