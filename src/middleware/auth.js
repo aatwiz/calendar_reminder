@@ -11,25 +11,39 @@ const path = require('path');
  * Session configuration
  */
 function getSessionConfig() {
-  const sessionDir = path.join(__dirname, '../../sessions');
-  
   // In production on Railway, trust the proxy (HTTPS is handled by Railway's reverse proxy)
   // In development, use non-secure cookies
   const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+  const isVercel = process.env.VERCEL === 'true';
   
   console.log(`\n🔐 ===== SESSION CONFIG =====`);
   console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT}`);
+  console.log(`VERCEL: ${process.env.VERCEL}`);
   console.log(`isProduction: ${isProduction}`);
-  console.log(`Session store: FileStore at ${sessionDir}`);
-  console.log(`=============================\n`);
+  console.log(`isVercel: ${isVercel}`);
   
-  return session({
-    store: new FileStore({
+  let store;
+  let sessionDir;
+  
+  // Use memory store on Vercel (read-only filesystem)
+  if (isVercel) {
+    console.log(`Session store: Memory store (Vercel serverless)`);
+    store = new session.MemoryStore();
+  } else {
+    sessionDir = path.join(__dirname, '../../sessions');
+    console.log(`Session store: FileStore at ${sessionDir}`);
+    store = new FileStore({
       path: sessionDir,
       ttl: 24 * 60 * 60, // 24 hours in seconds
       reapInterval: 60 * 60 // Clean up old sessions every hour
-    }),
+    });
+  }
+  
+  console.log(`=============================\n`);
+  
+  return session({
+    store: store,
     secret: process.env.SESSION_SECRET || 'calendar-reminder-session-secret-change-in-production',
     resave: false,
     saveUninitialized: false, // Don't save empty sessions
