@@ -16,6 +16,8 @@ router.use((req, res, next) => {
   console.log(`URL: ${req.originalUrl}`);
   console.log(`Timestamp: ${new Date().toISOString()}`);
   console.log(`Content-Type: ${req.get('content-type')}`);
+  console.log(`Body size: ${JSON.stringify(req.body || {}).length} bytes`);
+  console.log(`Body preview: ${JSON.stringify(req.body).substring(0, 100)}...`);
   console.log(`========================================\n`);
   next();
 });
