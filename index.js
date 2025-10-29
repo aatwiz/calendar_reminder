@@ -11,6 +11,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
+// Initialize session and authentication
+const { getSessionConfig, isAuthenticated, handleLogin, handleLogout, getLoginPage } = require('./src/middleware/auth');
+app.use(getSessionConfig());
+
 const { loadConfig } = require('./src/config');
 const { isGoogleAuthenticated, getCalendarEvents, markEventAsReminded } = require('./src/services/googleCalendar');
 const whatsapp = require('./src/services/whatsapp');
@@ -373,8 +377,17 @@ cron.schedule('0 0 * * *', () => {
   timezone: 'Europe/Dublin'
 });
 
+// Authentication routes (no auth required)
+app.get('/login', getLoginPage);
+app.post('/login', handleLogin);
+app.get('/logout', handleLogout);
+
+// Main routes (with authentication required)
+app.use('/', isAuthenticated);
 app.use('/', setupRoutes);
 app.use('/', authRoutes);
+
+// Webhook routes (no authentication required - WhatsApp needs to access)
 app.use('/webhook/whatsapp', whatsappWebhookRoutes);
 
 app.listen(port, () => {
