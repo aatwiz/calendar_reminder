@@ -19,6 +19,9 @@ function renderSetupPage(isGoogleAuthenticated, isWhatsAppAuthenticated) {
         <div class="header">
           <h1>🏥 Clinic Appointment Reminder</h1>
           <p>Connect your services to send WhatsApp reminders to patients</p>
+          <div style="margin-top: 10px;">
+            <a href="/" class="btn" style="display: inline-block;">🏠 Back to Home</a>
+          </div>
         </div>
         
         <div class="form-container">
