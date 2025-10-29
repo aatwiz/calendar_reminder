@@ -148,9 +148,13 @@ router.post('/', async (req, res) => {
       console.log(`Timestamp: ${new Date().toISOString()}`);
       console.log(`========================================\n`);
       
+      const { loadConfig } = require('../config');
+      const config = loadConfig();
+      const clinicPhone = config.clinic_phone || 'the clinic';
+      
       await whatsapp.sendTextMessage(
         from,
-        'Sorry, I don\'t have any pending appointment for this number. Please call us if you need assistance.'
+        `Hello! 👋\n\nThank you for contacting us. For appointment-related inquiries, please call us at ${clinicPhone}.\n\nOur team will be happy to assist you!`
       );
       return;
     }
