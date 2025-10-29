@@ -44,7 +44,8 @@ function saveState() {
 /**
  * Normalize phone number for consistent lookup
  * Handles E.164 format and country-specific quirks
- * Special handling for +31 (Netherlands) and +32 (Belgium) where area code 0 is dropped
+ * Many European countries drop the leading 0 in international format,
+ * which WhatsApp reflects in sender IDs
  * @param {string} phoneNumber - Raw phone number
  * @returns {string} Normalized phone number
  */
@@ -54,17 +55,32 @@ function normalizePhoneNumber(phoneNumber) {
   // Remove all non-digit characters
   let normalized = phoneNumber.replace(/\D/g, '');
   
-  // Handle Netherlands (+31) and Belgium (+32) special case:
-  // +310XXXXXXX becomes 310XXXXXXX but WhatsApp returns 31XXXXXXX
-  // So we need to normalize +310 → 31 by removing the 0
-  if (normalized.startsWith('310')) {
-    // Remove the 0 after country code 31
-    normalized = '31' + normalized.substring(3);
-    console.log(`📞 Netherlands number normalized: +310... → 31...`);
-  } else if (normalized.startsWith('320')) {
-    // Remove the 0 after country code 32
-    normalized = '32' + normalized.substring(3);
-    console.log(`📞 Belgium number normalized: +320... → 32...`);
+  // Handle countries with area code 0 that gets dropped in international format
+  // Pattern: +XXX0 (country code + leading 0) should become XXX (just country code)
+  // This applies to most European countries
+  const countryCodesToHandle = [
+    { code: '310', normalized: '31' },    // Netherlands: +310 → 31
+    { code: '320', normalized: '32' },    // Belgium: +320 → 32
+    { code: '330', normalized: '33' },    // France: +330 → 33
+    { code: '340', normalized: '34' },    // Spain: +340 → 34
+    { code: '390', normalized: '39' },    // Italy: +390 → 39
+    { code: '400', normalized: '40' },    // Romania: +400 → 40
+    { code: '410', normalized: '41' },    // Switzerland: +410 → 41
+    { code: '430', normalized: '43' },    // Austria: +430 → 43
+    { code: '440', normalized: '44' },    // UK: +440 → 44
+    { code: '450', normalized: '45' },    // Denmark: +450 → 45
+    { code: '460', normalized: '46' },    // Sweden: +460 → 46
+    { code: '470', normalized: '47' },    // Norway: +470 → 47
+    { code: '480', normalized: '48' },    // Poland: +480 → 48
+    { code: '490', normalized: '49' },    // Germany: +490 → 49
+    { code: '3530', normalized: '353' }   // Ireland: +3530 → 353
+  ];
+  
+  for (const { code, normalized: replacement } of countryCodesToHandle) {
+    if (normalized.startsWith(code)) {
+      normalized = replacement + normalized.substring(code.length);
+      break;
+    }
   }
   
   // Remove other leading zeros that might be at the very start
