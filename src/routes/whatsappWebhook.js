@@ -16,8 +16,8 @@ router.use((req, res, next) => {
   console.log(`URL: ${req.originalUrl}`);
   console.log(`Timestamp: ${new Date().toISOString()}`);
   console.log(`Content-Type: ${req.get('content-type')}`);
+  console.log(`Query params: ${JSON.stringify(req.query)}`);
   console.log(`Body size: ${JSON.stringify(req.body || {}).length} bytes`);
-  console.log(`Body preview: ${JSON.stringify(req.body).substring(0, 100)}...`);
   console.log(`========================================\n`);
   next();
 });
@@ -31,15 +31,17 @@ router.get('/', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
+  console.log(`\n🔐 ===== WEBHOOK VERIFICATION REQUEST =====`);
+  console.log(`Raw req.query: ${JSON.stringify(req.query)}`);
+  console.log(`Mode: ${mode}`);
+  console.log(`Challenge: ${challenge?.substring(0, 20)}...`);
+  console.log(`Token received: ${token?.substring(0, 20)}...`);
+
   // Get verify token from environment variable (Railway) or config file (local)
   const { loadConfig } = require('../config');
   const config = loadConfig();
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || config.whatsapp?.verify_token;
 
-  console.log(`\n🔐 ===== WEBHOOK VERIFICATION REQUEST =====`);
-  console.log(`Mode: ${mode}`);
-  console.log(`Challenge: ${challenge?.substring(0, 20)}...`);
-  console.log(`Token received: ${token?.substring(0, 20)}...`);
   console.log(`Expected token: ${verifyToken?.substring(0, 20)}...`);
   console.log(`Env var set: ${process.env.WHATSAPP_VERIFY_TOKEN ? 'YES' : 'NO'}`);
   console.log(`Config file has token: ${config.whatsapp?.verify_token ? 'YES' : 'NO'}`);
