@@ -52,6 +52,52 @@ app.use('/webhook/whatsapp', whatsappWebhookRoutes);
 // Apply authentication middleware to all other routes
 app.use(isAuthenticated);
 
+// Root route (with authentication required)
+app.get('/', (req, res) => {
+  const config = loadConfig();
+  const googleAuth = isGoogleAuthenticated();
+  const whatsappConfig = whatsapp.isConfigured();
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Clinic Appointment Reminder</title>
+      <link rel="stylesheet" href="/styles.css">
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🏥 Clinic Appointment Reminder</h1>
+          <p>WhatsApp-based appointment reminder system</p>
+        </div>
+        <div class="content">
+          <h2>System Status</h2>
+          <p>Google Calendar: ${googleAuth ? '✅ Connected' : '❌ Not connected'}</p>
+          <p>WhatsApp Business: ${whatsappConfig ? '✅ Configured' : '❌ Not configured'}</p>
+          
+          <h2>Quick Actions</h2>
+          <div class="actions">
+            <a href="/setup" class="btn btn-primary">⚙️ Setup</a>
+            ${googleAuth && whatsappConfig ? '<a href="/send-reminders" class="btn btn-confirm">📤 Send Reminders Now</a>' : ''}
+            ${googleAuth ? '<a href="/test-calendar" class="btn">📅 Test Calendar</a>' : ''}
+            <a href="/logout" class="btn btn-danger">🚪 Logout</a>
+          </div>
+          
+          <h2>How It Works</h2>
+          <ol style="text-align: left; margin: 20px auto; max-width: 500px;">
+            <li>Create calendar events with format: <code>Patient Name #PhoneNumber</code></li>
+            <li>System sends WhatsApp reminders 24-48h before appointment</li>
+            <li>Patients reply with: CONFIRM or RESCHEDULE</li>
+            <li>Calendar automatically updates with emoji status</li>
+          </ol>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 // Main routes (with authentication required)
 app.use('/', setupRoutes);
 app.use('/', authRoutes);
