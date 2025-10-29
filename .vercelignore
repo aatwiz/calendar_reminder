@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+VERCEL_MIGRATION.md
+.env
+.DS_Store
+sessions/
+config.json
+.github/

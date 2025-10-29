@@ -7,7 +7,7 @@ require('dotenv').config();
 const app = express();
 const port = 3000;
 
-// Trust proxy - important for HTTPS cookies on Railway
+// Trust proxy - important for HTTPS cookies on Railway, Vercel, and other platforms
 app.set('trust proxy', 1);
 
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -364,21 +364,28 @@ app.get('/send-reminders', async (req, res) => {
   res.end();
 });
 
-cron.schedule('*/15 * * * *', () => {
-  sendAutomatedReminders();
-}, {
-  scheduled: true,
-  timezone: 'Europe/Dublin'
-});
+// Only run cron jobs in non-serverless environments (Railway, local, etc.)
+// Skip on Vercel serverless platform
+if (process.env.VERCEL !== 'true') {
+  cron.schedule('*/15 * * * *', () => {
+    sendAutomatedReminders();
+  }, {
+    scheduled: true,
+    timezone: 'Europe/Dublin'
+  });
 
-cron.schedule('0 0 * * *', () => {
-  console.log('\n🧹 ===== CLEANING UP OLD CONVERSATIONS =====');
-  conversationState.cleanupOldConversations();
-  console.log('===== END OF CLEANUP =====\n');
-}, {
-  scheduled: true,
-  timezone: 'Europe/Dublin'
-});
+  cron.schedule('0 0 * * *', () => {
+    console.log('\n🧹 ===== CLEANING UP OLD CONVERSATIONS =====');
+    conversationState.cleanupOldConversations();
+    console.log('===== END OF CLEANUP =====\n');
+  }, {
+    scheduled: true,
+    timezone: 'Europe/Dublin'
+  });
+} else {
+  console.log('⚠️  Running on Vercel serverless - cron jobs disabled');
+  console.log('📌 For automated reminders, use Vercel Cron (Pro) or a separate background service');
+}
 
 // Authentication routes (no auth required)
 app.get('/login', getLoginPage);
@@ -404,18 +411,25 @@ app.get('/status', isAuthenticated, (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 Server running at http://localhost:${port}`);
   console.log(`➡ Go to http://localhost:${port}/setup to configure authentication`);
-  console.log('⏰ Automated reminders scheduled: Every 15 minutes');
-  console.log('🧹 Cleanup scheduled: Daily at midnight (removes old conversations)');
-  console.log('🌍 Timezone: Europe/Dublin');
+  
+  if (process.env.VERCEL !== 'true') {
+    console.log('⏰ Automated reminders scheduled: Every 15 minutes');
+    console.log('🧹 Cleanup scheduled: Daily at midnight (removes old conversations)');
+    console.log('🌍 Timezone: Europe/Dublin');
+  }
+  
   console.log('📱 Checking for appointments in next 48 hours\n');
   
   initializeWhatsApp();
   
   // Run initial check asynchronously without blocking server startup
-  console.log('🔄 Running initial check (async)...');
-  sendAutomatedReminders().catch(err => {
-    console.error('Error during initial check:', err.message);
-  });
+  // Skip on Vercel to avoid cold start delays
+  if (process.env.VERCEL !== 'true') {
+    console.log('🔄 Running initial check (async)...');
+    sendAutomatedReminders().catch(err => {
+      console.error('Error during initial check:', err.message);
+    });
+  }
 });
 
 module.exports = app;
