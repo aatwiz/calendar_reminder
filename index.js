@@ -95,7 +95,7 @@ async function processWhatsAppReminder(event, verbose = false) {
     const result = await whatsapp.sendTemplateMessage(
       fullPhoneNumber,
       templateName,
-      [formattedDate, clinicPhone]
+      [patientName, formattedDate]
     );
     
     console.log(`${logPrefix}✅ WhatsApp sent! Message ID: ${result.messages[0].id}`);
