@@ -190,56 +190,74 @@ async function markEventAsReminded(eventId, currentTitle) {
  * @returns {Promise<Object>} Updated event
  */
 async function updateEventTitle(eventId, emoji) {
-  console.log(`[updateEventTitle] START - eventId: ${eventId}, emoji: ${emoji}`);
-  const config = loadConfig();
-  if (!config.google || !config.google.tokens) {
-    throw new Error('Google not authenticated');
-  }
-
-  const oAuth2Client = getOAuthClient();
-  oAuth2Client.setCredentials(config.google.tokens);
-
-  const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
+  const fnId = `[updateEventTitle-${Date.now()}]`;
+  console.log(`${fnId} START - eventId: ${eventId}, emoji: ${emoji}`);
   
   try {
+    const config = loadConfig();
+    console.log(`${fnId} Config loaded`);
+    
+    if (!config.google || !config.google.tokens) {
+      throw new Error('Google not authenticated');
+    }
+    console.log(`${fnId} Google authenticated`);
+
+    const oAuth2Client = getOAuthClient();
+    console.log(`${fnId} OAuth client created`);
+    
+    oAuth2Client.setCredentials(config.google.tokens);
+    console.log(`${fnId} Credentials set`);
+
+    const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
+    console.log(`${fnId} Calendar client created`);
+    
     // Get current event
-    console.log(`[updateEventTitle] Fetching event ${eventId}...`);
-    const event = await calendar.events.get({
+    console.log(`${fnId} About to fetch event ${eventId}...`);
+    const eventResponse = await calendar.events.get({
       calendarId: 'primary',
       eventId
     });
-    console.log(`[updateEventTitle] Event fetched`);
+    console.log(`${fnId} Event fetched successfully, has summary: ${!!eventResponse.data.summary}`);
 
-    let currentTitle = event.data.summary;
+    let currentTitle = eventResponse.data.summary;
+    console.log(`${fnId} Original title: "${currentTitle}"`);
     
     // Remove any existing status emoji from the beginning
     // Match: emoji followed by space(s) at start of string
     currentTitle = currentTitle.replace(/^\S+\s+/, '').trim();
+    console.log(`${fnId} After first cleanup: "${currentTitle}"`);
     
     // If it still starts with an emoji pattern, clean it more aggressively
     if (/^\W/.test(currentTitle.charAt(0))) {
       currentTitle = currentTitle.replace(/^\W+\s*/, '').trim();
+      console.log(`${fnId} After aggressive cleanup: "${currentTitle}"`);
     }
     
     // Add new emoji
     const newTitle = `${emoji} ${currentTitle}`;
+    console.log(`${fnId} New title will be: "${newTitle}"`);
     
-    console.log(`📝 Updating title: "${currentTitle}" → "${newTitle}"`);
-    console.log(`[updateEventTitle] Patching event...`);
-    
-    const updatedEvent = await calendar.events.patch({
+    console.log(`${fnId} About to patch event...`);
+    const updateResponse = await calendar.events.patch({
       calendarId: 'primary',
       eventId,
       requestBody: {
         summary: newTitle,
       },
     });
+    console.log(`${fnId} Patch completed, response received`);
 
-    console.log(`[updateEventTitle] SUCCESS - Event updated`);
-    return updatedEvent.data;
+    console.log(`${fnId} SUCCESS - Event updated with new title`);
+    return updateResponse.data;
   } catch (error) {
-    console.error(`[updateEventTitle] ERROR:`, error.message);
-    console.error(`[updateEventTitle] Stack:`, error.stack);
+    console.error(`${fnId} CATCH BLOCK - Error caught`);
+    console.error(`${fnId} Error type: ${error.constructor.name}`);
+    console.error(`${fnId} Error message: ${error.message}`);
+    if (error.response) {
+      console.error(`${fnId} Error response status: ${error.response.status}`);
+      console.error(`${fnId} Error response data: ${JSON.stringify(error.response.data)}`);
+    }
+    console.error(`${fnId} Error stack: ${error.stack}`);
     throw error;
   }
 }

@@ -201,8 +201,16 @@ router.post('/', async (req, res) => {
 
     // Handle the intent
     console.log(`[WEBHOOK] Calling handleAppointmentAction()...`);
-    await handleAppointmentAction(from, context, intent);
-    console.log(`[WEBHOOK] handleAppointmentAction() completed`);
+    try {
+      await handleAppointmentAction(from, context, intent);
+      console.log(`[WEBHOOK] handleAppointmentAction() completed SUCCESSFULLY`);
+    } catch (actionError) {
+      console.error(`[WEBHOOK] handleAppointmentAction() THREW ERROR`);
+      console.error(`[WEBHOOK] Error type: ${actionError?.constructor?.name}`);
+      console.error(`[WEBHOOK] Error message: ${actionError?.message}`);
+      console.error(`[WEBHOOK] Error stack: ${actionError?.stack}`);
+      throw actionError;
+    }
     
     console.log(`Appointment action completed successfully`);
 
@@ -254,9 +262,13 @@ function parseIntent(text) {
  * @param {string} intent - User intent ('confirm' or 'reschedule')
  */
 async function handleAppointmentAction(phoneNumber, context, intent) {
+  const fnId = `[handleAppointmentAction-${Date.now()}]`;
+  console.log(`${fnId} START - intent: ${intent}, phone: ${phoneNumber}`);
+  
   const { eventId, patientName, appointmentTime } = context;
   const { loadConfig } = require('../config');
   const config = loadConfig();
+  console.log(`${fnId} Context loaded - eventId: ${eventId}, patient: ${patientName}`);
 
   let emoji = '';
   let action = '';
@@ -267,53 +279,66 @@ async function handleAppointmentAction(phoneNumber, context, intent) {
       emoji = '✅';
       action = 'confirmed';
       replyMessage = `✅ Your appointment is confirmed!\n\nSee you on ${formatDateTime(appointmentTime)}.\n\nThank you!`;
+      console.log(`${fnId} Intent is CONFIRM - emoji: ${emoji}`);
       break;
 
     case 'reschedule':
       emoji = '🔄';
       action = 'marked for rescheduling';
       replyMessage = `🔄 Our receptionist will call you shortly regarding rescheduling, thank you!`;
+      console.log(`${fnId} Intent is RESCHEDULE - emoji: ${emoji}`);
       break;
   }
 
   try {
     // Update Google Calendar event title
-    console.log(`📅 Updating calendar event ${eventId} with ${emoji} emoji`);
+    console.log(`${fnId} STEP 1: About to call updateEventTitle(${eventId}, ${emoji})`);
     await updateEventTitle(eventId, emoji);
-    console.log(`✅ Calendar event updated successfully`);
+    console.log(`${fnId} STEP 1 COMPLETE: updateEventTitle() returned successfully`);
 
     // Send confirmation message to patient
-    console.log(`📱 Sending reply to patient: ${phoneNumber}`);
+    console.log(`${fnId} STEP 2: About to send reply message to patient (${phoneNumber})`);
     const sendResult = await whatsapp.sendTextMessage(phoneNumber, replyMessage);
-    console.log(`✅ Message sent to patient: ${JSON.stringify(sendResult)}`);
+    console.log(`${fnId} STEP 2 COMPLETE: Message sent successfully`);
 
     // If reschedule, send notification to clinic
     if (intent === 'reschedule') {
-      console.log(`📞 Sending reschedule notification to clinic...`);
+      console.log(`${fnId} STEP 3: About to send reschedule notification to clinic`);
       await sendRescheduleNotificationToClinic(patientName, phoneNumber, appointmentTime, config);
-      console.log(`✅ Reschedule notification sent to clinic`);
+      console.log(`${fnId} STEP 3 COMPLETE: Reschedule notification sent`);
+    } else {
+      console.log(`${fnId} STEP 3 SKIPPED: No reschedule notification needed`);
     }
 
     // Clear conversation state
+    console.log(`${fnId} STEP 4: About to clear conversation state`);
     conversationState.clearConversation(phoneNumber);
-    console.log(`🗑️  Conversation state cleared for ${phoneNumber}`);
+    console.log(`${fnId} STEP 4 COMPLETE: Conversation state cleared`);
 
-    console.log(`✅ Appointment ${action} for ${patientName} (${phoneNumber})`);
+    console.log(`${fnId} SUCCESS: Appointment ${action} for ${patientName}`);
 
   } catch (error) {
-    console.error(`❌ Error handling ${intent}:`, error.message);
-    console.error(`Error stack:`, error.stack);
-    if (error.response) {
-      console.error(`API Error:`, error.response.status, error.response.data);
+    console.error(`${fnId} CATCH BLOCK - Error caught during action handling`);
+    console.error(`${fnId} Error type: ${error?.constructor?.name || 'Unknown'}`);
+    console.error(`${fnId} Error message: ${error?.message || 'No message'}`);
+    console.error(`${fnId} Error stack: ${error?.stack || 'No stack'}`);
+    if (error?.response) {
+      console.error(`${fnId} HTTP Error Status: ${error.response.status}`);
+      console.error(`${fnId} HTTP Error Data: ${JSON.stringify(error.response.data)}`);
     }
+    
     try {
+      console.log(`${fnId} Attempting to send error message to patient`);
       await whatsapp.sendTextMessage(
         phoneNumber,
         'Sorry, there was an error processing your request. Please call us directly.'
       );
+      console.log(`${fnId} Error message sent to patient`);
     } catch (sendError) {
-      console.error(`❌ Could not send error message:`, sendError.message);
+      console.error(`${fnId} Could not send error message:`, sendError.message);
     }
+    
+    throw error;
   }
 }
 
@@ -359,7 +384,5 @@ function formatDateTime(isoDateTime) {
     timeZone: 'Europe/Dublin'
   });
 }
-
-module.exports = router;
 
 module.exports = router;
