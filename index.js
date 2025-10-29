@@ -7,6 +7,9 @@ require('dotenv').config();
 const app = express();
 const port = 3000;
 
+// Trust proxy - important for HTTPS cookies on Railway
+app.set('trust proxy', 1);
+
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.static('public'));

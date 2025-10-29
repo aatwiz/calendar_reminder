@@ -13,10 +13,22 @@ const path = require('path');
 function getSessionConfig() {
   const sessionDir = path.join(__dirname, '../../sessions');
   
+  // In production on Railway, trust the proxy (HTTPS is handled by Railway's reverse proxy)
+  // In development, use non-secure cookies
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+  
+  console.log(`\n🔐 ===== SESSION CONFIG =====`);
+  console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT}`);
+  console.log(`isProduction: ${isProduction}`);
+  console.log(`Session store: FileStore at ${sessionDir}`);
+  console.log(`=============================\n`);
+  
   return session({
     store: new FileStore({
       path: sessionDir,
-      ttl: 24 * 60 * 60 // 24 hours in seconds
+      ttl: 24 * 60 * 60, // 24 hours in seconds
+      reapInterval: 60 * 60 // Clean up old sessions every hour
     }),
     secret: process.env.SESSION_SECRET || 'calendar-reminder-session-secret-change-in-production',
     resave: false,
@@ -25,8 +37,8 @@ function getSessionConfig() {
     cookie: {
       path: '/',
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-      sameSite: 'lax',
+      secure: isProduction, // Only HTTPS in production
+      sameSite: isProduction ? 'strict' : 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours in milliseconds
     }
   });
@@ -224,35 +236,38 @@ function handleLogin(req, res) {
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '@hmed2008';
   
   console.log(`\n🔐 ===== LOGIN ATTEMPT =====`);
-  console.log(`Username: ${username}`);
-  console.log(`Session ID before: ${req.sessionID}`);
+  console.log(`Username provided: ${username}`);
+  console.log(`Session ID before auth: ${req.sessionID}`);
   
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    console.log(`✅ Credentials valid`);
+    
+    // Set session properties
     req.session.authenticated = true;
     req.session.loginTime = new Date().toISOString();
     req.session.username = username;
     
-    console.log(`✅ Credentials valid`);
+    console.log(`✅ Session authenticated: true`);
     console.log(`✅ Session ID: ${req.sessionID}`);
-    console.log(`✅ Session authenticated: ${req.session.authenticated}`);
     
-    // Save session and then redirect
+    // Save session with callback
     req.session.save((err) => {
       if (err) {
         console.error('❌ Error saving session:', err);
-        return res.status(500).send('Error: Could not save session');
+        console.log(`===== END LOGIN ATTEMPT (ERROR) =====\n`);
+        return res.status(500).send(`<h1>Authentication Error</h1><p>Failed to save session: ${err.message}</p><a href="/login">Retry</a>`);
       }
       
-      console.log(`✅ Session saved successfully`);
-      console.log(`✅ Setting cookie and redirecting...`);
+      console.log(`✅ Session saved to disk`);
+      console.log(`✅ Redirecting to /setup`);
+      console.log(`===== END LOGIN ATTEMPT (SUCCESS) =====\n`);
       
-      // Make sure the Set-Cookie header is sent
-      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      // Redirect with explicit status
       res.redirect('/setup');
     });
   } else {
-    console.log(`❌ Invalid credentials`);
-    console.log(`===== END LOGIN ATTEMPT =====\n`);
+    console.log(`❌ Invalid credentials provided`);
+    console.log(`===== END LOGIN ATTEMPT (INVALID) =====\n`);
     res.status(401).send(getLoginPageHTML());
   }
 }
