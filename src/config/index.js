@@ -3,12 +3,22 @@ const path = require('path');
 
 const CONFIG_FILE = path.join(__dirname, '../../config.json');
 
+// In-memory config for Vercel (read-only filesystem)
+let memoryConfig = {};
+
 /**
  * Load saved configuration if it exists
  * Falls back to environment variables for production deployment
  * @returns {Object} Configuration object
  */
 function loadConfig() {
+  const isVercel = !!process.env.VERCEL;
+  
+  // On Vercel, use in-memory store
+  if (isVercel) {
+    return memoryConfig;
+  }
+  
   // First try to load from file (local development)
   if (fs.existsSync(CONFIG_FILE)) {
     return JSON.parse(fs.readFileSync(CONFIG_FILE));
@@ -32,9 +42,20 @@ function loadConfig() {
 
 /**
  * Save configuration to file
+ * On Vercel, saves to memory only (tokens persist for the function lifetime)
  * @param {Object} config - Configuration object to save
  */
 function saveConfig(config) {
+  const isVercel = !!process.env.VERCEL;
+  
+  if (isVercel) {
+    // Vercel: save to memory only
+    memoryConfig = config;
+    console.log('💾 Config saved to memory (Vercel serverless)');
+    return;
+  }
+  
+  // Local/Railway: save to file
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
 }
 
