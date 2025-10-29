@@ -387,8 +387,11 @@ app.listen(port, () => {
   
   initializeWhatsApp();
   
-  console.log('🔄 Running initial check...');
-  sendAutomatedReminders();
+  // Run initial check asynchronously without blocking server startup
+  console.log('🔄 Running initial check (async)...');
+  sendAutomatedReminders().catch(err => {
+    console.error('Error during initial check:', err.message);
+  });
 });
 
 module.exports = app;
