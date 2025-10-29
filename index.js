@@ -382,13 +382,21 @@ app.get('/login', getLoginPage);
 app.post('/login', handleLogin);
 app.get('/logout', handleLogout);
 
+// Webhook routes FIRST (no authentication required - WhatsApp needs to access)
+// These must be registered BEFORE the auth middleware
+app.use('/webhook/whatsapp', whatsappWebhookRoutes);
+
+// Apply authentication middleware to all other routes
+app.use(isAuthenticated);
+
 // Main routes (with authentication required)
-app.use('/', isAuthenticated);
 app.use('/', setupRoutes);
 app.use('/', authRoutes);
 
-// Webhook routes (no authentication required - WhatsApp needs to access)
-app.use('/webhook/whatsapp', whatsappWebhookRoutes);
+// Root path redirects to setup
+app.get('/', (req, res) => {
+  res.redirect('/setup');
+});
 
 app.listen(port, () => {
   console.log(`🚀 Server running at http://localhost:${port}`);

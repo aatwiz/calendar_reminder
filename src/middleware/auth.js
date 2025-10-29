@@ -184,16 +184,19 @@ function getLoginPageHTML() {
  * Middleware to check if user is authenticated
  */
 function isAuthenticated(req, res, next) {
+  console.log(`\n🔐 Auth check for ${req.method} ${req.path}`);
+  console.log(`   Session ID: ${req.sessionID}`);
+  console.log(`   Authenticated: ${req.session?.authenticated || false}`);
+  console.log(`   Session data keys: ${Object.keys(req.session || {}).join(', ')}`);
+  
+  // Check authentication
   if (req.session && req.session.authenticated) {
+    console.log(`   ✅ Authenticated - allowing`);
     return next();
   }
   
-  // If it's an API call (like webhook), always allow
-  if (req.path.startsWith('/webhook/')) {
-    return next();
-  }
-  
-  // Redirect to login
+  // Not authenticated - redirect to login
+  console.log(`   ❌ Not authenticated - redirecting to /login`);
   res.redirect('/login');
 }
 
@@ -208,8 +211,20 @@ function handleLogin(req, res) {
   
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     req.session.authenticated = true;
-    console.log(`✅ User authenticated at ${new Date().toISOString()}`);
-    res.redirect('/setup');
+    req.session.loginTime = new Date().toISOString();
+    console.log(`✅ User authenticated at ${req.session.loginTime}`);
+    console.log(`✅ Session ID: ${req.sessionID}`);
+    console.log(`✅ Session data:`, req.session);
+    
+    // Save session before redirecting
+    req.session.save((err) => {
+      if (err) {
+        console.error('❌ Error saving session:', err);
+        return res.status(500).send('Error saving session');
+      }
+      console.log(`✅ Session saved, redirecting to /setup`);
+      res.redirect('/setup');
+    });
   } else {
     console.log(`❌ Failed login attempt with username: ${username}`);
     res.status(401).send(getLoginPageHTML());
