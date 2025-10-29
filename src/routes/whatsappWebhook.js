@@ -169,11 +169,16 @@ router.post('/', async (req, res) => {
       return;
     }
 
+    console.log(`Found conversation context:`, JSON.stringify(context));
+
     // Parse user intent from message
     const intent = parseIntent(messageText);
 
+    console.log(`Parsed intent: ${intent}`);
+
     if (!intent) {
       // Didn't understand the message
+      console.log(`❌ Intent parsing returned null`);
       await whatsapp.sendTextMessage(
         from,
         `I didn't understand that. Please reply with:\n✅ CONFIRM to confirm\n🔄 RESCHEDULE to reschedule`
@@ -181,11 +186,18 @@ router.post('/', async (req, res) => {
       return;
     }
 
+    console.log(`About to handle appointment action with intent: ${intent}`);
+
     // Handle the intent
     await handleAppointmentAction(from, context, intent);
+    
+    console.log(`Appointment action completed successfully`);
 
   } catch (error) {
     console.error('❌ Error processing WhatsApp webhook:', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
   }
 });
 
