@@ -57,7 +57,8 @@ async function sendTemplateMessage(to, templateName, parameters = []) {
       headers: {
         'Authorization': `Bearer ${config.access_token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 10000 // 10 second timeout
     });
 
     console.log('✅ WhatsApp message sent:', response.data);
@@ -107,7 +108,8 @@ async function sendTextMessage(to, message) {
       headers: {
         'Authorization': `Bearer ${config.access_token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 10000 // 10 second timeout
     });
 
     console.log('✅ WhatsApp reply sent:', response.data);
@@ -131,13 +133,15 @@ async function sendTextMessage(to, message) {
  */
 async function markAsRead(messageId) {
   if (!config || !config.phone_number_id || !config.access_token) {
+    console.log(`[markAsRead] Skipping - WhatsApp not configured`);
     return;
   }
 
   const url = `https://graph.facebook.com/v21.0/${config.phone_number_id}/messages`;
 
   try {
-    await axios.post(url, {
+    console.log(`[markAsRead] Starting - messageId: ${messageId}`);
+    const response = await axios.post(url, {
       messaging_product: 'whatsapp',
       status: 'read',
       message_id: messageId
@@ -145,10 +149,20 @@ async function markAsRead(messageId) {
       headers: {
         'Authorization': `Bearer ${config.access_token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 5000 // 5 second timeout
     });
+    console.log(`[markAsRead] SUCCESS - response:`, response.status);
+    return response.data;
   } catch (error) {
-    console.error('Failed to mark message as read:', error.message);
+    console.error(`[markAsRead] ERROR - ${error.message}`);
+    console.error(`[markAsRead] Error code: ${error.code}`);
+    if (error.response) {
+      console.error(`[markAsRead] HTTP Status: ${error.response.status}`);
+      console.error(`[markAsRead] Response data:`, error.response.data);
+    }
+    // Don't re-throw - this is not critical to the main flow
+    return null;
   }
 }
 
