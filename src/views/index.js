@@ -30,7 +30,7 @@ function renderSetupPage(isGoogleAuthenticated, isWhatsAppAuthenticated) {
           <div class="section">
             <div class="google-auth-section ${isGoogleAuthenticated ? 'authenticated' : ''}">
               <div class="section-title">
-                <span class="section-icon google-icon">�</span>
+                <span class="section-icon google-icon"></span>
                 Google Calendar
               </div>
               
@@ -57,7 +57,7 @@ function renderSetupPage(isGoogleAuthenticated, isWhatsAppAuthenticated) {
             ${isWhatsAppAuthenticated ? `
               <div class="google-auth-section authenticated">
                 <div class="section-title">
-                  <span class="section-icon twilio-icon">�</span>
+                  <span class="section-icon twilio-icon"></span>
                   WhatsApp Business API
                 </div>
                 <div class="status-badge status-connected">✅ Configured</div>
