@@ -369,7 +369,7 @@ async function handleAppointmentAction(phoneNumber, context, intent) {
  * @param {Object} config - App configuration
  */
 async function sendRescheduleNotificationToClinic(patientName, patientPhone, appointmentTime, config) {
-  const clinicNotificationPhone = '+353871240142';
+  const clinicNotificationPhone = '+0647593444';
   const formattedDate = formatDateTime(appointmentTime);
   
   const message = `📌 RESCHEDULE REQUEST:\n\nPatient: ${patientName}\nPhone: ${patientPhone}\nOriginal Appointment: ${formattedDate}`;
