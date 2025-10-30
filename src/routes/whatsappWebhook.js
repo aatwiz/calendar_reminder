@@ -149,16 +149,12 @@ router.post('/', async (req, res) => {
     console.log(`========================================\n`);
 
     console.log(`[WEBHOOK-DEBUG] About to mark message as read`);
-    // Mark message as read
-    try {
-      await whatsapp.markAsRead(messageId);
-      console.log(`[WEBHOOK-DEBUG] ✅ Message marked as read`);
-    } catch (readError) {
-      console.warn(`⚠️  Could not mark message as read:`, readError.message);
-      console.log(`[WEBHOOK-DEBUG] Warning logged, continuing...`);
-    }
-
-    console.log(`[WEBHOOK-DEBUG] After markAsRead, about to get conversation`);
+    // Mark message as read (fire-and-forget, don't await)
+    // This prevents a slow Meta API from blocking the main flow
+    whatsapp.markAsRead(messageId).catch(err => {
+      console.warn(`[WEBHOOK-DEBUG] markAsRead error (non-blocking):`, err.message);
+    });
+    console.log(`[WEBHOOK-DEBUG] markAsRead called (non-blocking), continuing...`);
 
     // Get conversation context
     console.log(`\n🔍 Attempting to find conversation for phone: ${from}`);
