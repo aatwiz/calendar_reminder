@@ -211,19 +211,30 @@ async function updateEventTitle(eventId, emoji) {
     const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
     console.log(`${fnId} Calendar client created`);
     
-    // Get current event
+    // Get current event - with 8 second timeout
     console.log(`${fnId} About to fetch event ${eventId}...`);
-    const eventResponse = await calendar.events.get({
-      calendarId: 'primary',
-      eventId
-    });
+    let eventResponse;
+    try {
+      eventResponse = await Promise.race([
+        calendar.events.get({
+          calendarId: 'primary',
+          eventId
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Google Calendar API timeout after 8 seconds')), 8000)
+        )
+      ]);
+    } catch (fetchError) {
+      console.error(`${fnId} ERROR fetching event: ${fetchError.message}`);
+      throw fetchError;
+    }
+    
     console.log(`${fnId} Event fetched successfully, has summary: ${!!eventResponse.data.summary}`);
 
     let currentTitle = eventResponse.data.summary;
     console.log(`${fnId} Original title: "${currentTitle}"`);
     
     // Remove any existing status emoji from the beginning
-    // Match: emoji followed by space(s) at start of string
     currentTitle = currentTitle.replace(/^\S+\s+/, '').trim();
     console.log(`${fnId} After first cleanup: "${currentTitle}"`);
     
@@ -238,15 +249,26 @@ async function updateEventTitle(eventId, emoji) {
     console.log(`${fnId} New title will be: "${newTitle}"`);
     
     console.log(`${fnId} About to patch event...`);
-    const updateResponse = await calendar.events.patch({
-      calendarId: 'primary',
-      eventId,
-      requestBody: {
-        summary: newTitle,
-      },
-    });
+    let updateResponse;
+    try {
+      updateResponse = await Promise.race([
+        calendar.events.patch({
+          calendarId: 'primary',
+          eventId,
+          requestBody: {
+            summary: newTitle,
+          },
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Google Calendar API timeout after 8 seconds')), 8000)
+        )
+      ]);
+    } catch (patchError) {
+      console.error(`${fnId} ERROR patching event: ${patchError.message}`);
+      throw patchError;
+    }
+    
     console.log(`${fnId} Patch completed, response received`);
-
     console.log(`${fnId} SUCCESS - Event updated with new title`);
     return updateResponse.data;
   } catch (error) {
