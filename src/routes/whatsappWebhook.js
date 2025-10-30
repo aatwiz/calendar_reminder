@@ -76,12 +76,14 @@ router.post('/', async (req, res) => {
 
   try {
     const body = req.body;
+    console.log(`[WEBHOOK-DEBUG] Inside try block, body keys: ${Object.keys(body || {}).join(',')}`);
 
     // Check if this is a WhatsApp message event
     if (body.object !== 'whatsapp_business_account') {
       console.log(`ℹ️  Ignoring webhook (object: ${body.object})`);
       return;
     }
+    console.log(`[WEBHOOK-DEBUG] Body object is correct`);
 
     // Extract message data
     const entry = body.entry?.[0];
@@ -146,12 +148,17 @@ router.post('/', async (req, res) => {
     console.log(`Message: "${messageText}"`);
     console.log(`========================================\n`);
 
+    console.log(`[WEBHOOK-DEBUG] About to mark message as read`);
     // Mark message as read
     try {
       await whatsapp.markAsRead(messageId);
+      console.log(`[WEBHOOK-DEBUG] ✅ Message marked as read`);
     } catch (readError) {
       console.warn(`⚠️  Could not mark message as read:`, readError.message);
+      console.log(`[WEBHOOK-DEBUG] Warning logged, continuing...`);
     }
+
+    console.log(`[WEBHOOK-DEBUG] After markAsRead, about to get conversation`);
 
     // Get conversation context
     console.log(`\n🔍 Attempting to find conversation for phone: ${from}`);
@@ -215,16 +222,29 @@ router.post('/', async (req, res) => {
     console.log(`Appointment action completed successfully`);
 
   } catch (error) {
-    console.error('❌ ERROR PROCESSING WEBHOOK - Details below:');
-    console.error('Error type:', error?.constructor?.name || 'Unknown');
+    console.error('❌ ===== CRITICAL ERROR PROCESSING WEBHOOK =====');
+    console.error('Error occurred at:', new Date().toISOString());
+    console.error('Error constructor:', error?.constructor?.name || 'Unknown');
     console.error('Error message:', error?.message || 'No message');
+    console.error('Error code:', error?.code || 'No code');
     console.error('Error stack:', error?.stack || 'No stack');
     if (error?.response) {
       console.error('HTTP Status:', error.response.status);
       console.error('HTTP Data:', JSON.stringify(error.response.data));
     }
-    // Log the entire error object
-    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    console.error('Full error object keys:', Object.keys(error || {}));
+    console.error('Full error:', JSON.stringify(error, (key, value) => {
+      if (value instanceof Error) {
+        return {
+          message: value.message,
+          stack: value.stack,
+          constructor: value.constructor.name
+        };
+      }
+      return value;
+    }));
+    console.error('=========================================');
+    // Don't re-throw, Vercel will log it anyway
   }
 });
 
