@@ -190,52 +190,30 @@ async function markEventAsReminded(eventId, currentTitle) {
  * @returns {Promise<Object>} Updated event
  */
 async function updateEventTitle(eventId, emoji) {
-  const fnId = `[updateEventTitle-${Date.now()}]`;
-  console.log(`${fnId} START - eventId: ${eventId}, emoji: ${emoji}`);
-  
   try {
     const config = loadConfig();
-    console.log(`${fnId} Config loaded`);
     
     if (!config.google || !config.google.tokens) {
       throw new Error('Google not authenticated');
     }
-    console.log(`${fnId} Google authenticated`);
 
     const oAuth2Client = getOAuthClient();
-    console.log(`${fnId} OAuth client created`);
-    
     oAuth2Client.setCredentials(config.google.tokens);
-    console.log(`${fnId} Credentials set`);
-
     const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
-    console.log(`${fnId} Calendar client created`);
     
     // Fetch event with timeout
-    console.log(`${fnId} About to fetch event ${eventId}...`);
     const timeoutMs = 5000;
-    let eventResponse;
+    const fetchPromise = calendar.events.get({
+      calendarId: 'primary',
+      eventId
+    });
     
-    try {
-      const fetchPromise = calendar.events.get({
-        calendarId: 'primary',
-        eventId
-      });
-      
-      eventResponse = await Promise.race([
-        fetchPromise,
-        new Promise((_, reject) => {
-          const timer = setTimeout(() => {
-            reject(new Error(`Google Calendar GET timeout after ${timeoutMs}ms`));
-          }, timeoutMs);
-        })
-      ]);
-    } catch (timeoutError) {
-      console.error(`${fnId} TIMEOUT on fetch: ${timeoutError.message}`);
-      throw timeoutError;
-    }
-    
-    console.log(`${fnId} Event fetched, title: "${eventResponse.data.summary}"`);
+    const eventResponse = await Promise.race([
+      fetchPromise,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Google Calendar GET timeout')), timeoutMs)
+      )
+    ]);
 
     let currentTitle = eventResponse.data.summary;
     
@@ -249,46 +227,27 @@ async function updateEventTitle(eventId, emoji) {
     
     // Add new emoji
     const newTitle = `${emoji} ${currentTitle}`;
-    console.log(`${fnId} New title: "${newTitle}"`);
     
     // Patch event with timeout
-    console.log(`${fnId} About to patch event...`);
-    let updateResponse;
+    const patchPromise = calendar.events.patch({
+      calendarId: 'primary',
+      eventId,
+      requestBody: {
+        summary: newTitle,
+      },
+    });
     
-    try {
-      const patchPromise = calendar.events.patch({
-        calendarId: 'primary',
-        eventId,
-        requestBody: {
-          summary: newTitle,
-        },
-      });
-      
-      updateResponse = await Promise.race([
-        patchPromise,
-        new Promise((_, reject) => {
-          const timer = setTimeout(() => {
-            reject(new Error(`Google Calendar PATCH timeout after ${timeoutMs}ms`));
-          }, timeoutMs);
-        })
-      ]);
-    } catch (timeoutError) {
-      console.error(`${fnId} TIMEOUT on patch: ${timeoutError.message}`);
-      throw timeoutError;
-    }
+    const updateResponse = await Promise.race([
+      patchPromise,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Google Calendar PATCH timeout')), timeoutMs)
+      )
+    ]);
     
-    console.log(`${fnId} Patch completed successfully`);
-    console.log(`${fnId} SUCCESS - Event updated`);
     return updateResponse.data;
     
   } catch (error) {
-    console.error(`${fnId} ERROR caught`);
-    console.error(`${fnId} Error type: ${error.constructor.name}`);
-    console.error(`${fnId} Error message: ${error.message}`);
-    if (error.response) {
-      console.error(`${fnId} HTTP status: ${error.response.status}`);
-      console.error(`${fnId} HTTP data: ${JSON.stringify(error.response.data)}`);
-    }
+    console.error('[ERROR] Failed to update event title:', error.message);
     throw error;
   }
 }

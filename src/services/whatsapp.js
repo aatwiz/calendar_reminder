@@ -58,21 +58,12 @@ async function sendTemplateMessage(to, templateName, parameters = []) {
         'Authorization': `Bearer ${config.access_token}`,
         'Content-Type': 'application/json'
       },
-      timeout: 10000 // 10 second timeout
+      timeout: 10000
     });
 
-    console.log('✅ WhatsApp message sent:', response.data);
     return response.data;
   } catch (error) {
-    console.error('❌ WhatsApp send failed:', error.response?.data || error.message);
-    console.error('📋 Full error details:', JSON.stringify({
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      url: url,
-      phoneNumberId: config.phone_number_id,
-      to: to
-    }, null, 2));
+    console.error('[ERROR] WhatsApp send failed:', error.response?.data || error.message);
     throw new Error(`Failed to send WhatsApp message: ${error.response?.data?.error?.message || error.message}`);
   }
 }
@@ -109,20 +100,12 @@ async function sendTextMessage(to, message) {
         'Authorization': `Bearer ${config.access_token}`,
         'Content-Type': 'application/json'
       },
-      timeout: 10000 // 10 second timeout
+      timeout: 10000
     });
 
-    console.log('✅ WhatsApp reply sent:', response.data);
     return response.data;
   } catch (error) {
-    console.error('❌ WhatsApp reply failed:', error.response?.data || error.message);
-    console.error('📋 Full error details:', JSON.stringify({
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      url: url,
-      phoneNumberId: config.phone_number_id
-    }, null, 2));
+    console.error('[ERROR] WhatsApp reply failed:', error.response?.data || error.message);
     throw new Error(`Failed to send WhatsApp reply: ${error.response?.data?.error?.message || error.message}`);
   }
 }
@@ -133,14 +116,12 @@ async function sendTextMessage(to, message) {
  */
 async function markAsRead(messageId) {
   if (!config || !config.phone_number_id || !config.access_token) {
-    console.log(`[markAsRead] Skipping - WhatsApp not configured`);
     return;
   }
 
   const url = `https://graph.facebook.com/v21.0/${config.phone_number_id}/messages`;
 
   try {
-    console.log(`[markAsRead] Starting - messageId: ${messageId}`);
     const response = await axios.post(url, {
       messaging_product: 'whatsapp',
       status: 'read',
@@ -150,17 +131,10 @@ async function markAsRead(messageId) {
         'Authorization': `Bearer ${config.access_token}`,
         'Content-Type': 'application/json'
       },
-      timeout: 5000 // 5 second timeout
+      timeout: 5000
     });
-    console.log(`[markAsRead] SUCCESS - response:`, response.status);
     return response.data;
   } catch (error) {
-    console.error(`[markAsRead] ERROR - ${error.message}`);
-    console.error(`[markAsRead] Error code: ${error.code}`);
-    if (error.response) {
-      console.error(`[markAsRead] HTTP Status: ${error.response.status}`);
-      console.error(`[markAsRead] Response data:`, error.response.data);
-    }
     // Don't re-throw - this is not critical to the main flow
     return null;
   }
