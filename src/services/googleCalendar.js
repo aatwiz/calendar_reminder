@@ -211,75 +211,84 @@ async function updateEventTitle(eventId, emoji) {
     const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
     console.log(`${fnId} Calendar client created`);
     
-    // Get current event - with 8 second timeout
+    // Fetch event with timeout
     console.log(`${fnId} About to fetch event ${eventId}...`);
+    const timeoutMs = 5000;
     let eventResponse;
+    
     try {
+      const fetchPromise = calendar.events.get({
+        calendarId: 'primary',
+        eventId
+      });
+      
       eventResponse = await Promise.race([
-        calendar.events.get({
-          calendarId: 'primary',
-          eventId
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Google Calendar API timeout after 8 seconds')), 8000)
-        )
+        fetchPromise,
+        new Promise((_, reject) => {
+          const timer = setTimeout(() => {
+            reject(new Error(`Google Calendar GET timeout after ${timeoutMs}ms`));
+          }, timeoutMs);
+        })
       ]);
-    } catch (fetchError) {
-      console.error(`${fnId} ERROR fetching event: ${fetchError.message}`);
-      throw fetchError;
+    } catch (timeoutError) {
+      console.error(`${fnId} TIMEOUT on fetch: ${timeoutError.message}`);
+      throw timeoutError;
     }
     
-    console.log(`${fnId} Event fetched successfully, has summary: ${!!eventResponse.data.summary}`);
+    console.log(`${fnId} Event fetched, title: "${eventResponse.data.summary}"`);
 
     let currentTitle = eventResponse.data.summary;
-    console.log(`${fnId} Original title: "${currentTitle}"`);
     
     // Remove any existing status emoji from the beginning
     currentTitle = currentTitle.replace(/^\S+\s+/, '').trim();
-    console.log(`${fnId} After first cleanup: "${currentTitle}"`);
     
     // If it still starts with an emoji pattern, clean it more aggressively
     if (/^\W/.test(currentTitle.charAt(0))) {
       currentTitle = currentTitle.replace(/^\W+\s*/, '').trim();
-      console.log(`${fnId} After aggressive cleanup: "${currentTitle}"`);
     }
     
     // Add new emoji
     const newTitle = `${emoji} ${currentTitle}`;
-    console.log(`${fnId} New title will be: "${newTitle}"`);
+    console.log(`${fnId} New title: "${newTitle}"`);
     
+    // Patch event with timeout
     console.log(`${fnId} About to patch event...`);
     let updateResponse;
+    
     try {
+      const patchPromise = calendar.events.patch({
+        calendarId: 'primary',
+        eventId,
+        requestBody: {
+          summary: newTitle,
+        },
+      });
+      
       updateResponse = await Promise.race([
-        calendar.events.patch({
-          calendarId: 'primary',
-          eventId,
-          requestBody: {
-            summary: newTitle,
-          },
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Google Calendar API timeout after 8 seconds')), 8000)
-        )
+        patchPromise,
+        new Promise((_, reject) => {
+          const timer = setTimeout(() => {
+            reject(new Error(`Google Calendar PATCH timeout after ${timeoutMs}ms`));
+          }, timeoutMs);
+        })
       ]);
-    } catch (patchError) {
-      console.error(`${fnId} ERROR patching event: ${patchError.message}`);
-      throw patchError;
+    } catch (timeoutError) {
+      console.error(`${fnId} TIMEOUT on patch: ${timeoutError.message}`);
+      throw timeoutError;
     }
     
-    console.log(`${fnId} Patch completed, response received`);
-    console.log(`${fnId} SUCCESS - Event updated with new title`);
+    console.log(`${fnId} Patch completed successfully`);
+    console.log(`${fnId} SUCCESS - Event updated`);
     return updateResponse.data;
+    
   } catch (error) {
-    console.error(`${fnId} CATCH BLOCK - Error caught`);
+    console.error(`${fnId} ERROR caught`);
     console.error(`${fnId} Error type: ${error.constructor.name}`);
     console.error(`${fnId} Error message: ${error.message}`);
     if (error.response) {
-      console.error(`${fnId} Error response status: ${error.response.status}`);
-      console.error(`${fnId} Error response data: ${JSON.stringify(error.response.data)}`);
+      console.error(`${fnId} HTTP status: ${error.response.status}`);
+      console.error(`${fnId} HTTP data: ${JSON.stringify(error.response.data)}`);
     }
-    console.error(`${fnId} Error stack: ${error.stack}`);
     throw error;
   }
 }

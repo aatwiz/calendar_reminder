@@ -64,9 +64,6 @@ router.post('/', async (req, res) => {
   console.log(`\n📨 ===== WEBHOOK POST RECEIVED =====`);
   console.log(`Timestamp: ${new Date().toISOString()}`);
   console.log(`Raw body keys: ${Object.keys(req.body || {}).join(', ')}`);
-  
-  // Always respond quickly to Meta
-  res.sendStatus(200);
 
   console.log(`\n📨 ===== INCOMING WEBHOOK REQUEST =====`);
   console.log(`Received POST request`);
@@ -240,7 +237,13 @@ router.post('/', async (req, res) => {
       return value;
     }));
     console.error('=========================================');
-    // Don't re-throw, Vercel will log it anyway
+  } finally {
+    // CRITICAL: Respond to Meta AFTER all processing is done
+    // This ensures Vercel doesn't kill the function mid-execution
+    console.log(`[WEBHOOK] Sending 200 OK to Meta (after processing)`);
+    if (!res.headersSent) {
+      res.sendStatus(200);
+    }
   }
 });
 
