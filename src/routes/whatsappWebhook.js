@@ -51,7 +51,7 @@ router.get('/', (req, res) => {
     console.log('✅ Webhook verified successfully');
     res.status(200).send(challenge);
   } else {
-    console.log(`❌ Webhook verification failed`);
+    console.log(`[ERROR] Webhook verification failed - token mismatch`);
     res.sendStatus(403);
   }
 });
@@ -160,7 +160,7 @@ router.post('/', async (req, res) => {
       context = conversationState.getConversation(from);
       console.log(`✅ getConversation() completed`);
     } catch (convError) {
-      console.error(`❌ Error calling getConversation():`, convError.message);
+      console.error(`[ERROR] Error calling getConversation():`, convError.message);
       console.error(`Stack:`, convError.stack);
       throw convError;
     }
@@ -171,8 +171,8 @@ router.post('/', async (req, res) => {
       console.log(`Phone: ${from}`);
       console.log(`Message: "${messageText}"`);
       console.log(`Timestamp: ${new Date().toISOString()}`);
-      console.log(`❓ This phone number doesn't have an active appointment reminder.`);
-      console.log(`❓ Reminders must be sent first via /send-reminders for webhook to work.`);
+      console.log(`NOTE: This phone number doesn't have an active appointment reminder.`);
+      console.log(`NOTE: Reminders must be sent first via /send-reminders for webhook to work.`);
       console.log(`========================================\n`);
       
       // Only send greeting to truly new customers, not to users who already responded
@@ -189,10 +189,10 @@ router.post('/', async (req, res) => {
 
     if (!intent) {
       // Didn't understand the message
-      console.log(`❌ Intent parsing returned null`);
+      console.log(`Intent parsing returned null - message not understood`);
       await whatsapp.sendTextMessage(
         from,
-        `I didn't understand that. Please reply with:\n✅ CONFIRM to confirm\n🔄 RESCHEDULE to reschedule`
+        `I didn't understand that. Please reply with:\nCONFIRM to confirm your appointment\nRESCHEDULE to reschedule`
       );
       return;
     }
@@ -205,17 +205,17 @@ router.post('/', async (req, res) => {
       await handleAppointmentAction(from, context, intent);
       console.log(`[WEBHOOK] handleAppointmentAction() completed SUCCESSFULLY`);
     } catch (actionError) {
-      console.error(`[WEBHOOK] handleAppointmentAction() THREW ERROR`);
-      console.error(`[WEBHOOK] Error type: ${actionError?.constructor?.name}`);
-      console.error(`[WEBHOOK] Error message: ${actionError?.message}`);
-      console.error(`[WEBHOOK] Error stack: ${actionError?.stack}`);
+      console.error(`[WEBHOOK ERROR] handleAppointmentAction() threw exception`);
+      console.error(`[WEBHOOK ERROR] Type: ${actionError?.constructor?.name}`);
+      console.error(`[WEBHOOK ERROR] Message: ${actionError?.message}`);
+      console.error(`[WEBHOOK ERROR] Stack: ${actionError?.stack}`);
       throw actionError;
     }
     
     console.log(`Appointment action completed successfully`);
 
   } catch (error) {
-    console.error('❌ ===== CRITICAL ERROR PROCESSING WEBHOOK =====');
+    console.error('[ERROR] ===== CRITICAL ERROR PROCESSING WEBHOOK =====');
     console.error('Error occurred at:', new Date().toISOString());
     console.error('Error constructor:', error?.constructor?.name || 'Unknown');
     console.error('Error message:', error?.message || 'No message');
@@ -369,7 +369,7 @@ async function handleAppointmentAction(phoneNumber, context, intent) {
  * @param {Object} config - App configuration
  */
 async function sendRescheduleNotificationToClinic(patientName, patientPhone, appointmentTime, config) {
-  const clinicNotificationPhone = '+31647593444';
+  const clinicNotificationPhone = '+353871240142';
   const formattedDate = formatDateTime(appointmentTime);
   
   const message = `📌 RESCHEDULE REQUEST:\n\nPatient: ${patientName}\nPhone: ${patientPhone}\nOriginal Appointment: ${formattedDate}`;
@@ -381,7 +381,7 @@ async function sendRescheduleNotificationToClinic(patientName, patientPhone, app
     console.log(`📱 Reschedule notification sent to clinic (${clinicNotificationPhone})`);
     console.log(`Clinic notification result:`, JSON.stringify(result));
   } catch (error) {
-    console.error(`❌ Failed to send reschedule notification to clinic:`, error.message);
+    console.error(`[ERROR] Failed to send reschedule notification to clinic:`, error.message);
     console.error(`Error details:`, error);
   }
 }
